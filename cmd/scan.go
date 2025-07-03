@@ -47,8 +47,6 @@ func runScan(cmd *cobra.Command, args []string) {
 	end := time.Now()
 	start := end.AddDate(0, 0, -days)
 
-	dim := types.GroupDefinitionType("DIMENSION")
-
 	input := &costexplorer.GetCostAndUsageInput{
 		TimePeriod: &types.DateInterval{
 			Start: aws.String(start.Format("2006-01-02")),
@@ -58,7 +56,7 @@ func runScan(cmd *cobra.Command, args []string) {
 		Metrics:     []string{"UnblendedCost"},
 		GroupBy: []types.GroupDefinition{
 			{
-				Type: &dim,
+				Type: types.GroupDefinitionType("DIMENSION"),
 				Key:  aws.String("SERVICE"),
 			},
 		},
@@ -74,7 +72,7 @@ func runScan(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Println("✅ Cost data retrieved successfully.\n")
+	fmt.Println("✅ Cost data retrieved successfully.")
 
 	for _, result := range resp.ResultsByTime {
 		date := aws.ToString(result.TimePeriod.Start)
