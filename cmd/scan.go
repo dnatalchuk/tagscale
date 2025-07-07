@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,11 +35,24 @@ func init() {
 
 func runScan(cmd *cobra.Command, args []string) {
 	fmt.Println("🔍 Running TagScale scan...")
+	fmt.Println("DEBUG - Using AWS profile:", profile)
 
-	// Load AWS config
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithSharedConfigProfile(profile),
-	)
+	// Load AWS config - prioritize environment variables (from aws-vault)
+	var cfg aws.Config
+	var err error
+
+	// Check if we're running under aws-vault (environment variables set)
+	if os.Getenv("AWS_ACCESS_KEY_ID") != "" && os.Getenv("AWS_SECRET_ACCESS_KEY") != "" {
+		fmt.Println("DEBUG - Using environment credentials (aws-vault)")
+		cfg, err = config.LoadDefaultConfig(context.TODO())
+	} else {
+		fmt.Println("DEBUG - Using profile credentials")
+		cfg, err = config.LoadDefaultConfig(
+			context.TODO(),
+			config.WithSharedConfigProfile(profile),
+		)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
@@ -64,6 +79,10 @@ func runScan(cmd *cobra.Command, args []string) {
 
 	resp, err := ceClient.GetCostAndUsage(context.TODO(), input)
 	if err != nil {
+		// Check if it's the "not enabled" error
+		if strings.Contains(err.Error(), "not enabled for cost explorer access") {
+			log.Fatalf("Cost Explorer is not enabled or data is not ready yet.\nPlease enable Cost Explorer in the AWS Console and wait up to 24 hours for data preparation.")
+		}
 		log.Fatalf("Failed to get cost data: %v", err)
 	}
 
