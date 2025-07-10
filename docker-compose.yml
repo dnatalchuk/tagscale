@@ -1,0 +1,42 @@
+// docker-compose.yml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgres://tagscale:password@postgres:5432/tagscale?sslmode=disable
+      - AWS_REGION=us-east-1
+      - PORT=8080
+    volumes:
+      - .:/app
+    working_dir: /app
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=tagscale
+      - POSTGRES_USER=tagscale
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080/api/v1
+
+volumes:
+  postgres_data:

@@ -1,27 +1,21 @@
-module github.com/dnatalchuk/tagscale
+module tagscale
 
-go 1.24.2
-
-require (
-	github.com/aws/aws-sdk-go-v2 v1.36.5
-	github.com/aws/aws-sdk-go-v2/config v1.29.17
-	github.com/aws/aws-sdk-go-v2/service/costexplorer v1.51.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.229.0
-	github.com/spf13/cobra v1.9.1
-)
+go 1.21
 
 require (
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.70 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.25.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0 // indirect
-	github.com/aws/smithy-go v1.22.4 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+    github.com/aws/aws-sdk-go-v2 v1.21.0
+    github.com/aws/aws-sdk-go-v2/config v1.18.45
+    github.com/aws/aws-sdk-go-v2/service/costexplorer v1.25.0
+    github.com/aws/aws-sdk-go-v2/service/organizations v1.20.0
+    github.com/gin-gonic/gin v1.9.1
+    github.com/gorilla/mux v1.8.0
+    github.com/joho/godotenv v1.4.0
+    github.com/rs/cors v1.10.1
+    github.com/slack-go/slack v0.12.3
+    github.com/sirupsen/logrus v1.9.3
+    github.com/spf13/viper v1.17.0
+    github.com/stretchr/testify v1.8.4
+    gopkg.in/yaml.v3 v3.0.1
+    gorm.io/driver/postgres v1.5.4
+    gorm.io/gorm v1.25.5
 )

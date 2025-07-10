@@ -1,47 +1,163 @@
 # TagScale 🚀
 
-> Cloud cost insights without perfect tagging
+> # TagScale - Smart Cloud Cost Attribution
 
-![License: BSL](https://img.shields.io/badge/license-BSL-blue.svg)
+TagScale helps engineering teams understand where their cloud costs go, even with messy or incomplete tagging.
 
-TagScale helps engineering teams understand **where their cloud costs go** — even if your tagging is messy or incomplete.
+## Features
 
-✅ **Zero-effort cost attribution**  
-✅ Works even with missing or inconsistent tags  
-✅ Clean dashboards for small teams  
-✅ Slack and email digests for cost visibility
+- **Zero-effort cost attribution**: Works with missing or inconsistent tags
+- **Smart inference**: Uses resource names, patterns, and heuristics to determine ownership
+- **Clean dashboards**: Simple, focused interface for small teams
+- **Automated notifications**: Slack and email digests for cost visibility
+- **AWS Cost Explorer integration**: Pull real cost data automatically
 
----
+## Quick Start
 
-## ✨ Why TagScale?
+### Prerequisites
 
-Traditional FinOps tools demand perfect tagging or enterprise-level budgets. TagScale takes a different approach:
+- Go 1.21+
+- PostgreSQL 12+
+- AWS credentials with Cost Explorer access
+- Docker (optional)
 
-- Infers cost ownership using resource names, patterns, and heuristics
-- Highlights untagged spend and potential savings
-- Designed for small-to-mid-sized teams who want clarity without complexity
+### Installation
 
-No more cloud invoices that look like hieroglyphics.
+1. Clone the repository:
+```bash
+git clone https://github.com/your-org/tagscale.git
+cd tagscale
+```
 
----
+2. Install dependencies:
+```bash
+make deps
+```
 
-## 🎯 MVP Scope
+3. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
 
-The MVP focuses on **read-only cost analysis**:
+4. Run database migrations:
+```bash
+make migrate
+```
 
-- Pull AWS Cost Explorer data
-- Group costs by:
-  - Service
-  - Account
-  - Region
-  - Tags (when available)
-- Infer missing tag values
-- Visualize reports in a Next.js dashboard
-- Generate optional Slack/email digests
+5. Start the application:
+```bash
+make run
+```
 
-Future roadmap includes:
-- GCP and Azure support
-- Policy-driven tagging recommendations
-- CI/CD integration
+### Docker Setup
 
----
+```bash
+# Start all services
+make docker-run
+
+# Stop all services
+make docker-stop
+```
+
+## Configuration
+
+### Environment Variables
+
+- `DATABASE_URL`: PostgreSQL connection string
+- `AWS_REGION`: AWS region for Cost Explorer
+- `SLACK_TOKEN`: Slack bot token for notifications
+- `EMAIL_SMTP_*`: Email configuration for notifications
+- `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
+- `ANALYSIS_INTERVAL`: How often to run cost analysis (minutes)
+
+### AWS Permissions
+
+Your AWS credentials need the following permissions:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ce:GetCostAndUsage",
+                "ce:GetRightsizingRecommendation",
+                "ce:GetReservationCoverage",
+                "ce:GetReservationPurchaseRecommendation",
+                "ce:GetReservationUtilization",
+                "ce:GetSavingsPlansUtilization",
+                "ce:GetUsageReport"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+## API Endpoints
+
+### Cost Management
+- `GET /api/v1/costs/summary` - Get cost summary by time period
+- `GET /api/v1/costs/top` - Get top costs by service/account/region
+- `POST /api/v1/costs/collect` - Trigger cost data collection
+
+### Analysis
+- `GET /api/v1/analysis/latest` - Get latest cost analysis
+- `POST /api/v1/analysis/run` - Trigger cost analysis
+
+### Dashboard
+- `GET /api/v1/dashboard/overview` - Get dashboard overview data
+- `GET /api/v1/dashboard/trends` - Get cost trends over time
+
+## Development
+
+### Running Tests
+```bash
+make test
+```
+
+### Code Formatting
+```bash
+make fmt
+```
+
+### Linting
+```bash
+make lint
+```
+
+### Live Reload
+```bash
+# Install air for live reload
+go install github.com/cosmtrek/air@latest
+make dev
+```
+
+## Team Inference
+
+TagScale uses several heuristics to infer team ownership:
+
+1. **Resource Name Patterns**: Matches prefixes like `web-*`, `api-*`, `data-*`
+2. **Service Mapping**: Maps AWS services to likely teams
+3. **Tag Analysis**: Extracts team info from existing tags
+4. **Custom Rules**: Define your own mapping rules
+
+## Notifications
+
+### Slack Integration
+1. Create a Slack app with bot permissions
+2. Add the bot to your desired channel
+3. Set `SLACK_TOKEN` and `SLACK_CHANNEL` in your environment
+
+### Email Notifications
+Configure SMTP settings in your environment variables for daily email digests.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
