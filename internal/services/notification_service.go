@@ -20,9 +20,12 @@ type NotificationService struct {
 	db     *gorm.DB
 }
 
-func NewNotificationService(config *config.Config) *NotificationService {
+// NewNotificationService creates a new NotificationService with the provided
+// configuration and database connection.
+func NewNotificationService(config *config.Config, db *gorm.DB) *NotificationService {
 	return &NotificationService{
 		config: config,
+		db:     db,
 	}
 }
 
