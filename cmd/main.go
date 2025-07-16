@@ -44,7 +44,7 @@ func main() {
 	// Initialize services
 	costService := services.NewCostService(awsClient, db)
 	analysisService := services.NewAnalysisService(db)
-	notificationService := services.NewNotificationService(cfg)
+	notificationService := services.NewNotificationService(cfg, db)
 
 	// Initialize server
 	srv := server.New(cfg, costService, analysisService, notificationService)
