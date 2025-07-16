@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dnatalchuk/tagscale/internal/config"
-	"github.com/dnatalchuk/tagscale/internal/database"
-	"github.com/dnatalchuk/tagscale/internal/services"
+       "tagscale/internal/config"
+       "tagscale/internal/database"
+       "tagscale/internal/services"
 	"github.com/spf13/cobra"
 )
 
