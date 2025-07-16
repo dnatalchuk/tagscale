@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dnatalchuk/tagscale/internal/config"
-	"github.com/dnatalchuk/tagscale/internal/database"
-	"github.com/dnatalchuk/tagscale/internal/services"
 	"github.com/spf13/cobra"
+	"tagscale/internal/aws"
+	"tagscale/internal/config"
+	"tagscale/internal/database"
+	"tagscale/internal/services"
 )
 
 func NewCLI() *cobra.Command {
@@ -60,7 +61,7 @@ func runScan(days int) {
 	}
 
 	// Initialize AWS client
-	awsClient, err := services.InitAWSClient(cfg)
+	awsClient, err := aws.NewClient(cfg.AWSRegion)
 	if err != nil {
 		log.Fatalf("❌ Failed to init AWS client: %v", err)
 	}
@@ -68,7 +69,7 @@ func runScan(days int) {
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData()
+	err = costService.CollectCostData(days)
 	if err != nil {
 		log.Fatalf("❌ Cost data collection failed: %v", err)
 	}

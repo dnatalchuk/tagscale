@@ -50,6 +50,17 @@ make migrate
 make run
 ```
 
+### CLI Usage
+
+Run the CLI directly using Go:
+
+```bash
+go run ./cmd/cli/main.go scan --days 30
+go run ./cmd/cli/main.go summary
+```
+
+The `scan` command pulls cost data from AWS for the given number of days and stores it in the database, while `summary` prints the most recent analysis to your terminal.
+
 ### Docker Setup
 
 ```bash

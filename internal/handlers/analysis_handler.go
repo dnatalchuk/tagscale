@@ -17,8 +17,13 @@ func NewAnalysisHandler(analysisService *services.AnalysisService) *AnalysisHand
 }
 
 func (h *AnalysisHandler) GetLatestAnalysis(c *gin.Context) {
-	// This would get the latest analysis from the database
-	c.JSON(http.StatusOK, gin.H{"message": "Latest analysis endpoint"})
+	result, err := h.analysisService.GetLatestAnalysis()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
 }
 
 func (h *AnalysisHandler) RunAnalysis(c *gin.Context) {

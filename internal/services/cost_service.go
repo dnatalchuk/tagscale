@@ -24,12 +24,16 @@ func NewCostService(awsClient *aws.Client, db *gorm.DB) *CostService {
 	}
 }
 
-func (s *CostService) CollectCostData() error {
+func (s *CostService) CollectCostData(days int) error {
+	if days <= 0 {
+		days = 30
+	}
+
 	ctx := context.Background()
 
-	// Get cost data for the last 30 days
+	// Get cost data for the last N days
 	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -30)
+	startDate := endDate.AddDate(0, 0, -days)
 
 	result, err := s.awsClient.GetCostAndUsage(ctx, startDate, endDate)
 	if err != nil {
@@ -54,8 +58,8 @@ func (s *CostService) CollectCostData() error {
 			region := group.Keys[2]
 
 			costAmount := 0.0
-			if len(group.Metrics) > 0 && group.Metrics["BlendedCost"] != nil {
-				if amount := group.Metrics["BlendedCost"].Amount; amount != nil {
+			if metric, ok := group.Metrics["BlendedCost"]; ok {
+				if amount := metric.Amount; amount != nil {
 					costAmount, _ = strconv.ParseFloat(*amount, 64)
 				}
 			}

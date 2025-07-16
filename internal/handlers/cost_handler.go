@@ -66,7 +66,7 @@ func (h *CostHandler) GetTopCosts(c *gin.Context) {
 
 func (h *CostHandler) CollectCosts(c *gin.Context) {
 	go func() {
-		h.costService.CollectCostData()
+		h.costService.CollectCostData(30)
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Cost collection started"})

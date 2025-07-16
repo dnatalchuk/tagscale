@@ -17,6 +17,17 @@ type AnalysisService struct {
 	db *gorm.DB
 }
 
+type AnalysisResult struct {
+	TotalCost       float64
+	UntaggedCost    float64
+	UntaggedPercent float64
+	TopServices     []models.CostSummary
+	TopAccounts     []models.CostSummary
+	TopRegions      []models.CostSummary
+	CostByTeam      []models.CostSummary
+	Insights        []string
+}
+
 func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
@@ -163,4 +174,25 @@ func (s *AnalysisService) GenerateInsights(totalCost, untaggedPercent float64, t
 	}
 
 	return insights
+}
+
+func (s *AnalysisService) GetLatestAnalysis() (AnalysisResult, error) {
+	var analysis models.CostAnalysis
+	if err := s.db.Order("date DESC").First(&analysis).Error; err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to get latest analysis: %w", err)
+	}
+
+	result := AnalysisResult{
+		TotalCost:       analysis.TotalCost,
+		UntaggedCost:    analysis.UntaggedCost,
+		UntaggedPercent: analysis.UntaggedPercent,
+	}
+
+	json.Unmarshal([]byte(analysis.TopServices), &result.TopServices)
+	json.Unmarshal([]byte(analysis.TopAccounts), &result.TopAccounts)
+	json.Unmarshal([]byte(analysis.TopRegions), &result.TopRegions)
+	json.Unmarshal([]byte(analysis.CostByTeam), &result.CostByTeam)
+	json.Unmarshal([]byte(analysis.Insights), &result.Insights)
+
+	return result, nil
 }
