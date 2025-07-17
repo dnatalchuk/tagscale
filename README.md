@@ -60,6 +60,16 @@ make docker-run
 make docker-stop
 ```
 
+## Usage
+
+Build the CLI tool:
+
+```bash
+make build-cli
+```
+
+The binary will be created at `bin/tagscale-cli`.
+
 ## Configuration
 
 ### Environment Variables
