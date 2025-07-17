@@ -1,9 +1,13 @@
 # Makefile
-.PHONY: build run test clean docker-build docker-run
+.PHONY: build build-cli run test clean docker-build docker-run
 
 # Build the application
 build:
 	go build -o bin/tagscale ./cmd/main.go
+
+# Build the CLI application
+build-cli:
+	go build -o bin/tagscale-cli ./cmd/cli
 
 # Run the application
 run:
