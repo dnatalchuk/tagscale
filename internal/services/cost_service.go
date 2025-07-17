@@ -54,8 +54,8 @@ func (s *CostService) CollectCostData() error {
 			region := group.Keys[2]
 
 			costAmount := 0.0
-			if len(group.Metrics) > 0 && group.Metrics["BlendedCost"] != nil {
-				if amount := group.Metrics["BlendedCost"].Amount; amount != nil {
+			if metric, ok := group.Metrics["BlendedCost"]; ok {
+				if amount := metric.Amount; amount != nil {
 					costAmount, _ = strconv.ParseFloat(*amount, 64)
 				}
 			}
