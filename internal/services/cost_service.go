@@ -24,12 +24,18 @@ func NewCostService(awsClient *aws.Client, db *gorm.DB) *CostService {
 	}
 }
 
-func (s *CostService) CollectCostData() error {
+// CollectCostData retrieves AWS cost data for the provided number of days
+// and stores the results in the database. If days <= 0 a default of 30 days
+// is used.
+func (s *CostService) CollectCostData(days int) error {
+	if days <= 0 {
+		days = 30
+	}
+
 	ctx := context.Background()
 
-	// Get cost data for the last 30 days
 	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -30)
+	startDate := endDate.AddDate(0, 0, -days)
 
 	result, err := s.awsClient.GetCostAndUsage(ctx, startDate, endDate)
 	if err != nil {

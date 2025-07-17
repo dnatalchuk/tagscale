@@ -93,7 +93,7 @@ func startBackgroundWorkers(costService *services.CostService, analysisService *
 			select {
 			case <-ticker.C:
 				log.Println("Starting cost data collection...")
-				if err := costService.CollectCostData(); err != nil {
+				if err := costService.CollectCostData(30); err != nil {
 					log.Printf("Cost data collection failed: %v", err)
 				}
 			}

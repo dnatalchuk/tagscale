@@ -75,7 +75,7 @@ func runScan(days int) {
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData()
+	err = costService.CollectCostData(days)
 	if err != nil {
 		log.Fatalf("❌ Cost data collection failed: %v", err)
 	}

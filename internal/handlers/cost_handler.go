@@ -65,8 +65,14 @@ func (h *CostHandler) GetTopCosts(c *gin.Context) {
 }
 
 func (h *CostHandler) CollectCosts(c *gin.Context) {
+	daysStr := c.DefaultQuery("days", "30")
+	days, err := strconv.Atoi(daysStr)
+	if err != nil {
+		days = 30
+	}
+
 	go func() {
-		h.costService.CollectCostData()
+		h.costService.CollectCostData(days)
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Cost collection started"})
