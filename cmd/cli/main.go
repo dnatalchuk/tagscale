@@ -1,14 +1,21 @@
-package cmd
+package main
 
 import (
 	"fmt"
 	"log"
 
-       "tagscale/internal/config"
-       "tagscale/internal/database"
-       "tagscale/internal/services"
 	"github.com/spf13/cobra"
+	"tagscale/internal/aws"
+	"tagscale/internal/config"
+	"tagscale/internal/database"
+	"tagscale/internal/services"
 )
+
+func main() {
+	if err := NewCLI().Execute(); err != nil {
+		log.Fatalf("command failed: %v", err)
+	}
+}
 
 func NewCLI() *cobra.Command {
 	var days int
@@ -60,7 +67,7 @@ func runScan(days int) {
 	}
 
 	// Initialize AWS client
-	awsClient, err := services.InitAWSClient(cfg)
+	awsClient, err := aws.NewClient(cfg.AWSRegion)
 	if err != nil {
 		log.Fatalf("❌ Failed to init AWS client: %v", err)
 	}

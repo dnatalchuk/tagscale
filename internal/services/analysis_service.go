@@ -17,6 +17,15 @@ type AnalysisService struct {
 	db *gorm.DB
 }
 
+// AnalysisResult represents the parsed result of a cost analysis run.
+type AnalysisResult struct {
+	TotalCost       float64
+	UntaggedCost    float64
+	UntaggedPercent float64
+	TopServices     []models.CostSummary
+	Insights        []string
+}
+
 func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
@@ -163,4 +172,27 @@ func (s *AnalysisService) GenerateInsights(totalCost, untaggedPercent float64, t
 	}
 
 	return insights
+}
+
+// GetLatestAnalysis retrieves the most recent cost analysis from the database
+// and unmarshals the stored JSON fields into a convenient AnalysisResult
+// structure.
+func (s *AnalysisService) GetLatestAnalysis() (AnalysisResult, error) {
+	var analysis models.CostAnalysis
+	if err := s.db.Order("date desc").First(&analysis).Error; err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to fetch latest analysis: %w", err)
+	}
+
+	result := AnalysisResult{
+		TotalCost:       analysis.TotalCost,
+		UntaggedCost:    analysis.UntaggedCost,
+		UntaggedPercent: analysis.UntaggedPercent,
+	}
+
+	if err := json.Unmarshal([]byte(analysis.TopServices), &result.TopServices); err != nil {
+		// ignore unmarshalling error but log for debugging
+	}
+	_ = json.Unmarshal([]byte(analysis.Insights), &result.Insights)
+
+	return result, nil
 }
