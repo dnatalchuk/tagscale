@@ -37,7 +37,7 @@ make deps
 3. Set up environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your configuration (do not commit secrets)
 ```
 
 4. Run database migrations:
@@ -70,15 +70,11 @@ make build-cli
 
 The binary will be created at `bin/tagscale-cli`.
 
-Before running any commands make sure your `.env` or environment variables are
-configured. At a minimum set:
+Before running any commands configure your AWS credentials using environment
+variables or an AWS profile. Avoid storing `AWS_SECRET_ACCESS_KEY` in your `.env`
+file. If you want to persist data to PostgreSQL also set `DATABASE_URL`.
 
-- `DATABASE_URL`
-- `AWS_REGION`
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-
-Ensure PostgreSQL is running and the schema has been migrated:
+If using the database, ensure PostgreSQL is running and the schema has been migrated:
 
 ```bash
 make migrate
@@ -88,6 +84,13 @@ Run a cost scan:
 
 ```bash
 ./bin/tagscale-cli scan --days 30
+```
+
+To run without PostgreSQL use the `--memory` flag. This fetches data from AWS
+and prints a summary without persisting anything:
+
+```bash
+./bin/tagscale-cli scan --memory --days 30
 ```
 
 View the latest analysis summary:
@@ -102,8 +105,8 @@ View the latest analysis summary:
 
 - `DATABASE_URL`: PostgreSQL connection string
 - `AWS_REGION`: AWS region for Cost Explorer
-- `AWS_ACCESS_KEY_ID`: AWS access key for CLI and services
-- `AWS_SECRET_ACCESS_KEY`: AWS secret key for CLI and services
+- `AWS_ACCESS_KEY_ID`: AWS access key for CLI and services (export in your shell)
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key for CLI and services (export in your shell and never commit it)
 - `SLACK_TOKEN`: Slack bot token for notifications
 - `EMAIL_SMTP_*`: Email configuration for notifications
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)

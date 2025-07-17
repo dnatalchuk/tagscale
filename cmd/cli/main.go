@@ -19,18 +19,20 @@ func main() {
 
 func NewCLI() *cobra.Command {
 	var days int
+	var memory bool
 
 	rootCmd := &cobra.Command{
 		Use:   "tagscale",
 		Short: "TagScale CLI - Cloud cost insights in your terminal",
 	}
+	rootCmd.PersistentFlags().BoolVar(&memory, "memory", false, "Run without database and keep data in memory")
 
 	// SCAN command
 	scanCmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		Run: func(cmd *cobra.Command, args []string) {
-			runScan(days)
+			runScan(days, memory)
 		},
 	}
 
@@ -41,9 +43,10 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			runSummary()
+			runSummary(days, memory)
 		},
 	}
+	summaryCmd.Flags().IntVar(&days, "days", 30, "Number of days to look back")
 
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(summaryCmd)
@@ -51,7 +54,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(days int) {
+func runScan(days int, memory bool) {
 	fmt.Println("🔍 Running TagScale scan...")
 
 	// Load config
@@ -60,33 +63,55 @@ func runScan(days int) {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	// Connect DB
-	db, err := database.Connect(cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to DB: %v", err)
-	}
-
 	// Initialize AWS client
 	awsClient, err := aws.NewClient(cfg.AWSRegion)
 	if err != nil {
 		log.Fatalf("❌ Failed to init AWS client: %v", err)
 	}
 
-	// Run cost collection
+	if memory {
+		records, err := services.CollectCostDataInMemory(awsClient, days)
+		if err != nil {
+			log.Fatalf("❌ Cost data collection failed: %v", err)
+		}
+		result := services.AnalyzeCostRecords(records)
+		printAnalysis(result)
+		return
+	}
+
+	db, err := database.Connect(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to DB: %v", err)
+	}
+
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(days)
-	if err != nil {
+	if err = costService.CollectCostData(days); err != nil {
 		log.Fatalf("❌ Cost data collection failed: %v", err)
 	}
 
 	fmt.Println("✅ Cost data collected.")
 }
 
-func runSummary() {
+func runSummary(days int, memory bool) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
+	}
+
+	awsClient, err := aws.NewClient(cfg.AWSRegion)
+	if err != nil {
+		log.Fatalf("❌ Failed to init AWS client: %v", err)
+	}
+
+	if memory {
+		records, err := services.CollectCostDataInMemory(awsClient, days)
+		if err != nil {
+			log.Fatalf("❌ Cost data collection failed: %v", err)
+		}
+		result := services.AnalyzeCostRecords(records)
+		printAnalysis(result)
+		return
 	}
 
 	db, err := database.Connect(cfg.DatabaseURL)
@@ -96,13 +121,10 @@ func runSummary() {
 
 	analysisService := services.NewAnalysisService(db)
 
-	// Run analysis so we have fresh data
-	err = analysisService.RunAnalysis()
-	if err != nil {
+	if err = analysisService.RunAnalysis(); err != nil {
 		log.Fatalf("❌ Analysis failed: %v", err)
 	}
 
-	// Fetch latest analysis
 	latestAnalysis, err := analysisService.GetLatestAnalysis()
 	if err != nil {
 		log.Fatalf("❌ Failed to fetch latest analysis: %v", err)
