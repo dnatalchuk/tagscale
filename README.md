@@ -60,7 +60,7 @@ make docker-run
 make docker-stop
 ```
 
-## Usage
+## CLI
 
 Build the CLI tool:
 
@@ -70,12 +70,40 @@ make build-cli
 
 The binary will be created at `bin/tagscale-cli`.
 
+Before running any commands make sure your `.env` or environment variables are
+configured. At a minimum set:
+
+- `DATABASE_URL`
+- `AWS_REGION`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+
+Ensure PostgreSQL is running and the schema has been migrated:
+
+```bash
+make migrate
+```
+
+Run a cost scan:
+
+```bash
+./bin/tagscale-cli scan --days 30
+```
+
+View the latest analysis summary:
+
+```bash
+./bin/tagscale-cli summary
+```
+
 ## Configuration
 
 ### Environment Variables
 
 - `DATABASE_URL`: PostgreSQL connection string
 - `AWS_REGION`: AWS region for Cost Explorer
+- `AWS_ACCESS_KEY_ID`: AWS access key for CLI and services
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key for CLI and services
 - `SLACK_TOKEN`: Slack bot token for notifications
 - `EMAIL_SMTP_*`: Email configuration for notifications
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
