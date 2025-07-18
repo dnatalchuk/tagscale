@@ -16,7 +16,7 @@ TagScale helps engineering teams understand where their cloud costs go, even wit
 
 ### Prerequisites
 
-- Go 1.21+
+ - Go 1.23+ (Go toolchain 1.24+ recommended)
  - PostgreSQL 12+ (only required when using database persistence or running the server)
 - AWS credentials with Cost Explorer access
 - Docker (optional)
