@@ -110,6 +110,7 @@ Insights:
 - `EMAIL_SMTP_*`: Email configuration for notifications
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
 - `ANALYSIS_INTERVAL`: How often to run cost analysis (minutes)
+- `API_KEY` (optional): API key required for API requests. Send as `Authorization: Bearer <API_KEY>`
 
 ### AWS Permissions
 
@@ -137,6 +138,12 @@ Your AWS credentials need the following permissions:
 ```
 
 ## API Endpoints
+
+All `/api/v1` routes require the `API_KEY` if one is configured. Include it in requests as:
+
+```
+Authorization: Bearer <API_KEY>
+```
 
 ### Cost Management
 - `GET /api/v1/costs/summary` - Get cost summary by time period
