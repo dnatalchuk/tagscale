@@ -17,7 +17,7 @@ TagScale helps engineering teams understand where their cloud costs go, even wit
 ### Prerequisites
 
 - Go 1.21+
-- PostgreSQL 12+
+ - PostgreSQL 12+ (only required when using database persistence or running the server)
 - AWS credentials with Cost Explorer access
 - Docker (optional)
 
@@ -70,11 +70,41 @@ make build-cli
 
 The binary will be created at `bin/tagscale-cli`.
 
+By default the CLI stores all data in-memory. Use the `--db` flag to persist results
+to the PostgreSQL database configured by `DATABASE_URL`.
+
+### Example: In-memory scan and summary
+
+Run a quick scan for the last 7 days without saving results to a database and then
+print a summary:
+
+```bash
+./bin/tagscale-cli scan --days 7
+./bin/tagscale-cli summary
+```
+
+Sample output:
+
+```text
+🔍 Running TagScale scan...
+✅ Cost data collected.
+
+💰 Total Cost: $123.45
+🏷️ Untagged Cost: $45.67 (37.0%)
+
+Top Services:
+ • AmazonEC2                    $100.00
+ • AmazonS3                     $20.00
+
+Insights:
+ • 37.0% of your costs are untagged. Consider implementing tagging policies.
+```
+
 ## Configuration
 
 ### Environment Variables
 
-- `DATABASE_URL`: PostgreSQL connection string
+ - `DATABASE_URL` (optional): PostgreSQL connection string used with `--db` or when running the server
 - `AWS_REGION`: AWS region for Cost Explorer
 - `SLACK_TOKEN`: Slack bot token for notifications
 - `EMAIL_SMTP_*`: Email configuration for notifications
