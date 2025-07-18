@@ -24,6 +24,11 @@ func (h *CostHandler) GetCostSummary(c *gin.Context) {
 	endDateStr := c.Query("end_date")
 	groupBy := c.DefaultQuery("group_by", "service")
 
+	if !services.IsGroupByAllowed(groupBy) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group_by parameter"})
+		return
+	}
+
 	startDate, err := time.Parse("2006-01-02", startDateStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format"})
@@ -48,6 +53,11 @@ func (h *CostHandler) GetCostSummary(c *gin.Context) {
 func (h *CostHandler) GetTopCosts(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "10")
 	groupBy := c.DefaultQuery("group_by", "service")
+
+	if !services.IsGroupByAllowed(groupBy) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group_by parameter"})
+		return
+	}
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {

@@ -17,6 +17,20 @@ type CostService struct {
 	db        *gorm.DB
 }
 
+// AllowedGroupBy lists the valid fields that can be used for grouping cost data.
+var AllowedGroupBy = map[string]struct{}{
+	"service": {},
+	"account": {},
+	"region":  {},
+	"date":    {},
+}
+
+// IsGroupByAllowed reports whether the provided field is in the safe list.
+func IsGroupByAllowed(field string) bool {
+	_, ok := AllowedGroupBy[field]
+	return ok
+}
+
 func NewCostService(awsClient *aws.Client, db *gorm.DB) *CostService {
 	return &CostService{
 		awsClient: awsClient,
@@ -91,6 +105,10 @@ func (s *CostService) CollectCostData(days int) error {
 }
 
 func (s *CostService) GetCostSummary(startDate, endDate time.Time, groupBy string) ([]models.CostSummary, error) {
+	if !IsGroupByAllowed(groupBy) {
+		return nil, fmt.Errorf("invalid group by field")
+	}
+
 	var results []models.CostSummary
 
 	query := s.db.Model(&models.CostRecord{}).
@@ -119,6 +137,10 @@ func (s *CostService) GetCostSummary(startDate, endDate time.Time, groupBy strin
 }
 
 func (s *CostService) GetTopCosts(limit int, groupBy string) ([]models.CostSummary, error) {
+	if !IsGroupByAllowed(groupBy) {
+		return nil, fmt.Errorf("invalid group by field")
+	}
+
 	var results []models.CostSummary
 
 	query := s.db.Model(&models.CostRecord{}).
