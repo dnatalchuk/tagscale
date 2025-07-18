@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"github.com/spf13/cobra"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 	"tagscale/internal/aws"
 	"tagscale/internal/config"
 	"tagscale/internal/database"
@@ -19,18 +21,21 @@ func main() {
 
 func NewCLI() *cobra.Command {
 	var days int
+	var useDB bool
 
 	rootCmd := &cobra.Command{
 		Use:   "tagscale",
 		Short: "TagScale CLI - Cloud cost insights in your terminal",
 	}
 
+	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
+
 	// SCAN command
 	scanCmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		Run: func(cmd *cobra.Command, args []string) {
-			runScan(days)
+			runScan(days, useDB)
 		},
 	}
 
@@ -41,7 +46,7 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			runSummary()
+			runSummary(useDB)
 		},
 	}
 
@@ -51,7 +56,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(days int) {
+func runScan(days int, useDB bool) {
 	fmt.Println("🔍 Running TagScale scan...")
 
 	// Load config
@@ -60,10 +65,21 @@ func runScan(days int) {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	// Connect DB
-	db, err := database.Connect(cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to DB: %v", err)
+	// Connect storage
+	var db *gorm.DB
+	if useDB {
+		db, err = database.Connect(cfg.DatabaseURL)
+		if err != nil {
+			log.Fatalf("❌ Failed to connect to DB: %v", err)
+		}
+	} else {
+		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		if err != nil {
+			log.Fatalf("❌ Failed to open in-memory DB: %v", err)
+		}
+		if err := database.Migrate(db); err != nil {
+			log.Fatalf("❌ Failed to migrate schema: %v", err)
+		}
 	}
 
 	// Initialize AWS client
@@ -83,15 +99,26 @@ func runScan(days int) {
 	fmt.Println("✅ Cost data collected.")
 }
 
-func runSummary() {
+func runSummary(useDB bool) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	db, err := database.Connect(cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to DB: %v", err)
+	var db *gorm.DB
+	if useDB {
+		db, err = database.Connect(cfg.DatabaseURL)
+		if err != nil {
+			log.Fatalf("❌ Failed to connect to DB: %v", err)
+		}
+	} else {
+		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		if err != nil {
+			log.Fatalf("❌ Failed to open in-memory DB: %v", err)
+		}
+		if err := database.Migrate(db); err != nil {
+			log.Fatalf("❌ Failed to migrate schema: %v", err)
+		}
 	}
 
 	analysisService := services.NewAnalysisService(db)
