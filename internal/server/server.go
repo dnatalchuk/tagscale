@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"tagscale/internal/config"
 	"tagscale/internal/handlers"
+	"tagscale/internal/middleware"
 	"tagscale/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,9 @@ func New(config *config.Config, costService *services.CostService, analysisServi
 }
 
 func (s *Server) Router() http.Handler {
-	r := gin.Default()
+	r := gin.New()
+	r.Use(middleware.LoggingMiddleware())
+	r.Use(gin.Recovery())
 
 	// Initialize handlers
 	costHandler := handlers.NewCostHandler(s.costService)
@@ -36,7 +39,7 @@ func (s *Server) Router() http.Handler {
 	dashboardHandler := handlers.NewDashboardHandler(s.costService, s.analysisService)
 
 	// API routes
-	api := r.Group("/api/v1")
+	api := r.Group("/api/v1", middleware.AuthMiddleware(s.config.APIKey))
 	{
 		api.GET("/costs/summary", costHandler.GetCostSummary)
 		api.GET("/costs/top", costHandler.GetTopCosts)
