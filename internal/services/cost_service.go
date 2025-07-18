@@ -6,14 +6,21 @@ import (
 	"strconv"
 	"time"
 
-	"tagscale/internal/aws"
 	"tagscale/internal/models"
 
+	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"gorm.io/gorm"
 )
 
+// CostExplorerAPI describes the subset of the AWS Cost Explorer client used by
+// CostService. Defining this interface allows the service to be tested with a
+// mock implementation.
+type CostExplorerAPI interface {
+	GetCostAndUsage(ctx context.Context, startDate, endDate time.Time) (*costexplorer.GetCostAndUsageOutput, error)
+}
+
 type CostService struct {
-	awsClient *aws.Client
+	awsClient CostExplorerAPI
 	db        *gorm.DB
 }
 
@@ -31,7 +38,7 @@ func IsGroupByAllowed(field string) bool {
 	return ok
 }
 
-func NewCostService(awsClient *aws.Client, db *gorm.DB) *CostService {
+func NewCostService(awsClient CostExplorerAPI, db *gorm.DB) *CostService {
 	return &CostService{
 		awsClient: awsClient,
 		db:        db,
