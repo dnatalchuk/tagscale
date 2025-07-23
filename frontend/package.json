@@ -1,0 +1,8 @@
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo Building with $REACT_APP_API_URL",
+    "start": "node index.js"
+  }
+}
