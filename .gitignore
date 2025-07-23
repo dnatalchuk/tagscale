@@ -52,3 +52,5 @@ docker-compose.override.yml
 
 # Air (live reload)
 tmp/
+node_modules/
+**/node_modules/

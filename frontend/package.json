@@ -3,6 +3,17 @@
   "version": "1.0.0",
   "scripts": {
     "build": "echo Building with $REACT_APP_API_URL",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@testing-library/react": "^16.3.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3"
   }
 }
