@@ -28,9 +28,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: http://localhost:8080/api/v1
     ports:
       - "3000:3000"
     depends_on:
