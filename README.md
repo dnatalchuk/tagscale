@@ -16,10 +16,11 @@ TagScale helps engineering teams understand where their cloud costs go, even wit
 
 ### Prerequisites
 
- - Go 1.23+ (Go toolchain 1.24+ recommended)
- - PostgreSQL 12+ (only required when using database persistence or running the server)
+- Go 1.23+ (Go toolchain 1.24+ recommended)
+- PostgreSQL 12+ (only required when using database persistence or running the server)
 - AWS credentials with Cost Explorer access
 - Docker (optional)
+- Node.js 18+ (for running the frontend)
 
 ### Installation
 
@@ -58,6 +59,23 @@ make docker-run
 
 # Stop all services
 make docker-stop
+```
+
+## Frontend Development
+
+1. Install dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. Start the development server:
+   ```bash
+   npm start
+   ```
+
+To build the frontend Docker image:
+```bash
+docker build -t tagscale-frontend ./frontend
 ```
 
 ## Usage
@@ -111,7 +129,8 @@ Insights:
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
 - `ANALYSIS_INTERVAL`: How often to run cost analysis (minutes)
 - `API_KEY` (optional): API key required for API requests. Send as `Authorization: Bearer <API_KEY>`
-- `REACT_APP_API_KEY` (optional): API key for the React frontend. When set, `GreatComponent.js` will send requests with `Authorization: Bearer <key>`
+- `REACT_APP_API_URL`: base URL for API calls made by the React app
+- `REACT_APP_API_KEY` (optional): API key for the React frontend. When set, the app sends requests with `Authorization: Bearer <key>`
 
 ### AWS Permissions
 
