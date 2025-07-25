@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -13,8 +14,10 @@ import (
 )
 
 // CostExplorerAPI describes the subset of the AWS Cost Explorer client used by
-// CostService. Defining this interface allows the service to be tested with a
-// mock implementation.
+// CostService. Implementations should return cost data grouped by service,
+// account, region, resource ID and team tag so that CollectCostData can attach
+// tags and resource identifiers to saved records. Defining this interface allows
+// the service to be tested with a mock implementation.
 type CostExplorerAPI interface {
 	GetCostAndUsage(ctx context.Context, startDate, endDate time.Time) (*costexplorer.GetCostAndUsageOutput, error)
 }
@@ -79,6 +82,20 @@ func (s *CostService) CollectCostData(days int) error {
 			service := group.Keys[0]
 			account := group.Keys[1]
 			region := group.Keys[2]
+			resourceID := ""
+			if len(group.Keys) >= 4 {
+				resourceID = group.Keys[3]
+			}
+			tagValue := ""
+			if len(group.Keys) >= 5 {
+				tagValue = group.Keys[4]
+			}
+
+			tags := make(map[string]string)
+			if tagValue != "" {
+				tags["Team"] = tagValue
+			}
+			tagsJSON, _ := json.Marshal(tags)
 
 			costAmount := 0.0
 			if metric, ok := group.Metrics["BlendedCost"]; ok {
@@ -88,13 +105,14 @@ func (s *CostService) CollectCostData(days int) error {
 			}
 
 			costRecord := models.CostRecord{
-				Date:     date,
-				Service:  service,
-				Account:  account,
-				Region:   region,
-				Cost:     costAmount,
-				Currency: "USD",
-				Tags:     "{}",
+				Date:       date,
+				Service:    service,
+				Account:    account,
+				Region:     region,
+				ResourceID: resourceID,
+				Cost:       costAmount,
+				Currency:   "USD",
+				Tags:       string(tagsJSON),
 			}
 
 			costRecords = append(costRecords, costRecord)
