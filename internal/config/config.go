@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -22,6 +23,7 @@ type Config struct {
 	AnalysisInterval       int // minutes
 	LogLevel               string
 	APIKey                 string
+	AllowedOrigins         []string
 }
 
 func Load() (*Config, error) {
@@ -42,6 +44,7 @@ func Load() (*Config, error) {
 		AnalysisInterval:       getEnvAsInt("ANALYSIS_INTERVAL", 120),
 		LogLevel:               getEnv("LOG_LEVEL", "info"),
 		APIKey:                 getEnv("API_KEY", ""),
+		AllowedOrigins:         getEnvAsSlice("CORS_ORIGINS", ",", []string{"http://localhost:3000"}),
 	}
 
 	return config, nil
@@ -58,6 +61,22 @@ func getEnvAsInt(key string, defaultValue int) int {
 	if value, exists := os.LookupEnv(key); exists {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsSlice(key string, sep string, defaultValue []string) []string {
+	if value, exists := os.LookupEnv(key); exists {
+		parts := strings.Split(value, sep)
+		var result []string
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		if len(result) > 0 {
+			return result
 		}
 	}
 	return defaultValue

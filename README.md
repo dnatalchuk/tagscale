@@ -129,6 +129,7 @@ Insights:
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
 - `ANALYSIS_INTERVAL`: How often to run cost analysis (minutes)
 - `API_KEY` (optional): API key required for API requests. Send as `Authorization: Bearer <API_KEY>`
+- `CORS_ORIGINS`: Comma-separated list of allowed origins for API requests
 - `REACT_APP_API_URL`: base URL for API calls made by the React app
 - `REACT_APP_API_KEY` (optional): API key for the React frontend. When set, the app sends requests with `Authorization: Bearer <key>`
 
