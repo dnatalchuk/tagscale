@@ -41,7 +41,7 @@ func TestCollectCostData(t *testing.T) {
 				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-01"), End: aws.String("2023-01-02")},
 				Groups: []types.Group{
 					{
-						Keys: []string{"AmazonEC2", "123456789012", "us-east-1"},
+						Keys: []string{"AmazonEC2", "123456789012", "us-east-1", "i-abc123", "backend"},
 						Metrics: map[string]types.MetricValue{
 							"BlendedCost": {Amount: aws.String("5"), Unit: aws.String("USD")},
 						},
@@ -61,6 +61,10 @@ func TestCollectCostData(t *testing.T) {
 	require.Equal(t, "123456789012", recs[0].Account)
 	require.Equal(t, "us-east-1", recs[0].Region)
 	require.InDelta(t, 5.0, recs[0].Cost, 0.001)
+	require.Equal(t, "i-abc123", recs[0].ResourceID)
+	var tags map[string]string
+	require.NoError(t, json.Unmarshal([]byte(recs[0].Tags), &tags))
+	require.Equal(t, "backend", tags["Team"])
 }
 
 func TestGetCostSummary(t *testing.T) {

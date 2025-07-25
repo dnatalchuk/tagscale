@@ -209,7 +209,8 @@ TagScale uses several heuristics to infer team ownership:
 
 1. **Resource Name Patterns**: Matches prefixes like `web-*`, `api-*`, `data-*`
 2. **Service Mapping**: Maps AWS services to likely teams
-3. **Tag Analysis**: Extracts team info from existing tags
+3. **Tag Analysis**: Parses tags returned by Cost Explorer (e.g. `Team=backend`)
+   and stores them with each cost record for ownership inference
 4. **Custom Rules**: Define your own mapping rules
 
 ## Notifications

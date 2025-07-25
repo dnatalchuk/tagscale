@@ -47,6 +47,14 @@ func (c *Client) GetCostAndUsage(ctx context.Context, startDate, endDate time.Ti
 				Type: types.GroupDefinitionTypeDimension,
 				Key:  aws.String("REGION"),
 			},
+			{
+				Type: types.GroupDefinitionTypeDimension,
+				Key:  aws.String("RESOURCE_ID"),
+			},
+			{
+				Type: types.GroupDefinitionTypeTag,
+				Key:  aws.String("Team"),
+			},
 		},
 	}
 
