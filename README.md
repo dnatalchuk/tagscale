@@ -41,10 +41,12 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
-4. Run database migrations:
+4. (Optional) Run database migrations manually:
 ```bash
 make migrate
 ```
+
+Migrations will also run automatically when starting the server or when using `--db` with the CLI.
 
 5. Start the application:
 ```bash
@@ -89,7 +91,8 @@ make build-cli
 The binary will be created at `bin/tagscale-cli`.
 
 By default the CLI stores all data in-memory. Use the `--db` flag to persist results
-to the PostgreSQL database configured by `DATABASE_URL`.
+to the database configured by `DATABASE_URL`. When this flag is used the CLI
+automatically runs any pending migrations.
 
 ### Example: In-memory scan and summary
 

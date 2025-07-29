@@ -28,7 +28,7 @@ func NewCLI() *cobra.Command {
 		Short: "TagScale CLI - Cloud cost insights in your terminal",
 	}
 
-	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
+	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL (runs migrations)")
 
 	// SCAN command
 	scanCmd := &cobra.Command{
@@ -72,6 +72,9 @@ func runScan(days int, useDB bool) {
 		if err != nil {
 			log.Fatalf("❌ Failed to connect to DB: %v", err)
 		}
+		if err := database.Migrate(db); err != nil {
+			log.Fatalf("❌ Failed to migrate schema: %v", err)
+		}
 	} else {
 		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		if err != nil {
@@ -110,6 +113,9 @@ func runSummary(useDB bool) {
 		db, err = database.Connect(cfg.DatabaseURL)
 		if err != nil {
 			log.Fatalf("❌ Failed to connect to DB: %v", err)
+		}
+		if err := database.Migrate(db); err != nil {
+			log.Fatalf("❌ Failed to migrate schema: %v", err)
 		}
 	} else {
 		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
