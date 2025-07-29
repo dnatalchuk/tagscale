@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/smtp"
+	"time"
 
 	"tagscale/internal/config"
 	"tagscale/internal/models"
@@ -15,18 +16,38 @@ import (
 	"gorm.io/gorm"
 )
 
+type slackSender interface {
+	PostMessage(channelID, message string) error
+}
+
+type realSlackClient struct {
+	client *slack.Client
+}
+
+func (r *realSlackClient) PostMessage(channelID, message string) error {
+	_, _, err := r.client.PostMessage(channelID, slack.MsgOptionText(message, false))
+	return err
+}
+
 type NotificationService struct {
-	config *config.Config
-	db     *gorm.DB
+	config      *config.Config
+	db          *gorm.DB
+	slackClient slackSender
+	sendMail    func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
 }
 
 // NewNotificationService creates a new NotificationService with the provided
 // configuration and database connection.
 func NewNotificationService(config *config.Config, db *gorm.DB) *NotificationService {
-	return &NotificationService{
-		config: config,
-		db:     db,
+	svc := &NotificationService{
+		config:   config,
+		db:       db,
+		sendMail: smtp.SendMail,
 	}
+	if config.SlackToken != "" {
+		svc.slackClient = &realSlackClient{client: slack.New(config.SlackToken)}
+	}
+	return svc
 }
 
 func (s *NotificationService) SendDailyDigest() error {
@@ -54,7 +75,9 @@ func (s *NotificationService) SendDailyDigest() error {
 }
 
 func (s *NotificationService) sendSlackDigest(analysis models.CostAnalysis) error {
-	api := slack.New(s.config.SlackToken)
+	if s.slackClient == nil {
+		s.slackClient = &realSlackClient{client: slack.New(s.config.SlackToken)}
+	}
 
 	message := fmt.Sprintf(`📊 *Daily Cost Report - %s*
 
@@ -74,8 +97,7 @@ func (s *NotificationService) sendSlackDigest(analysis models.CostAnalysis) erro
 		s.formatInsights(analysis.Insights),
 	)
 
-	_, _, err := api.PostMessage(s.config.SlackChannel, slack.MsgOptionText(message, false))
-	return err
+	return s.slackClient.PostMessage(s.config.SlackChannel, message)
 }
 
 func (s *NotificationService) sendEmailDigest(analysis models.CostAnalysis) error {
@@ -114,7 +136,22 @@ func (s *NotificationService) sendEmailDigest(analysis models.CostAnalysis) erro
 	}
 
 	var buf bytes.Buffer
-	if err := t.Execute(&buf, analysis); err != nil {
+	var data struct {
+		Date            time.Time
+		TotalCost       float64
+		UntaggedCost    float64
+		UntaggedPercent float64
+		TopServices     []models.CostSummary
+		Insights        []string
+	}
+	data.Date = analysis.Date
+	data.TotalCost = analysis.TotalCost
+	data.UntaggedCost = analysis.UntaggedCost
+	data.UntaggedPercent = analysis.UntaggedPercent
+	_ = json.Unmarshal([]byte(analysis.TopServices), &data.TopServices)
+	_ = json.Unmarshal([]byte(analysis.Insights), &data.Insights)
+
+	if err := t.Execute(&buf, data); err != nil {
 		return err
 	}
 
@@ -124,15 +161,13 @@ func (s *NotificationService) sendEmailDigest(analysis models.CostAnalysis) erro
 	msg := fmt.Sprintf("To: %s\r\nSubject: TagScale Daily Cost Report\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		s.config.EmailUsername, buf.String())
 
-	err = smtp.SendMail(
+	return s.sendMail(
 		fmt.Sprintf("%s:%d", s.config.EmailSMTPHost, s.config.EmailSMTPPort),
 		auth,
 		s.config.EmailUsername,
 		[]string{s.config.EmailUsername},
 		[]byte(msg),
 	)
-
-	return err
 }
 
 func (s *NotificationService) formatTopServices(topServicesJSON string) string {
