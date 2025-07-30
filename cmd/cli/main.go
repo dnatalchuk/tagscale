@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"gorm.io/driver/sqlite"
@@ -12,6 +14,18 @@ import (
 	"tagscale/internal/database"
 	"tagscale/internal/services"
 )
+
+func cliDBPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, ".tagscale")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "cli.db"), nil
+}
 
 func main() {
 	if err := NewCLI().Execute(); err != nil {
@@ -76,9 +90,13 @@ func runScan(days int, useDB bool) {
 			log.Fatalf("❌ Failed to migrate schema: %v", err)
 		}
 	} else {
-		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		path, err := cliDBPath()
 		if err != nil {
-			log.Fatalf("❌ Failed to open in-memory DB: %v", err)
+			log.Fatalf("❌ Failed to get CLI DB path: %v", err)
+		}
+		db, err = gorm.Open(sqlite.Open(path), &gorm.Config{})
+		if err != nil {
+			log.Fatalf("❌ Failed to open temp DB: %v", err)
 		}
 		if err := database.Migrate(db); err != nil {
 			log.Fatalf("❌ Failed to migrate schema: %v", err)
@@ -118,9 +136,13 @@ func runSummary(useDB bool) {
 			log.Fatalf("❌ Failed to migrate schema: %v", err)
 		}
 	} else {
-		db, err = gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		path, err := cliDBPath()
 		if err != nil {
-			log.Fatalf("❌ Failed to open in-memory DB: %v", err)
+			log.Fatalf("❌ Failed to get CLI DB path: %v", err)
+		}
+		db, err = gorm.Open(sqlite.Open(path), &gorm.Config{})
+		if err != nil {
+			log.Fatalf("❌ Failed to open temp DB: %v", err)
 		}
 		if err := database.Migrate(db); err != nil {
 			log.Fatalf("❌ Failed to migrate schema: %v", err)
