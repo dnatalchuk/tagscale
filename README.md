@@ -94,6 +94,11 @@ By default the CLI stores all data in-memory. Use the `--db` flag to persist res
 to the database configured by `DATABASE_URL`. When this flag is used the CLI
 automatically runs any pending migrations.
 
+If `scan` and `summary` are run as separate commands without `--db`, each
+invocation starts with a fresh in-memory database and the scan results are lost
+before the summary runs. Use `--db` or run both commands in a single session to
+retain the collected data.
+
 ### Example: In-memory scan and summary
 
 Run a quick scan for the last 7 days without saving results to a database and then
