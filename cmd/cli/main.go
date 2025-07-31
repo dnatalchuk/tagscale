@@ -27,6 +27,34 @@ func cliDBPath() (string, error) {
 	return filepath.Join(dir, "cli.db"), nil
 }
 
+func initDB(useDB bool, cfg *config.Config) (*gorm.DB, error) {
+	var (
+		db  *gorm.DB
+		err error
+	)
+	if useDB {
+		db, err = database.Connect(cfg.DatabaseURL)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		path, err := cliDBPath()
+		if err != nil {
+			return nil, err
+		}
+		db, err = gorm.Open(sqlite.Open(path), &gorm.Config{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := database.Migrate(db); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
 func main() {
 	if err := NewCLI().Execute(); err != nil {
 		log.Fatalf("command failed: %v", err)
@@ -79,28 +107,9 @@ func runScan(days int, useDB bool) {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	// Connect storage
-	var db *gorm.DB
-	if useDB {
-		db, err = database.Connect(cfg.DatabaseURL)
-		if err != nil {
-			log.Fatalf("❌ Failed to connect to DB: %v", err)
-		}
-		if err := database.Migrate(db); err != nil {
-			log.Fatalf("❌ Failed to migrate schema: %v", err)
-		}
-	} else {
-		path, err := cliDBPath()
-		if err != nil {
-			log.Fatalf("❌ Failed to get CLI DB path: %v", err)
-		}
-		db, err = gorm.Open(sqlite.Open(path), &gorm.Config{})
-		if err != nil {
-			log.Fatalf("❌ Failed to open temp DB: %v", err)
-		}
-		if err := database.Migrate(db); err != nil {
-			log.Fatalf("❌ Failed to migrate schema: %v", err)
-		}
+	db, err := initDB(useDB, cfg)
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
 
 	// Initialize AWS client
@@ -126,27 +135,9 @@ func runSummary(useDB bool) {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	var db *gorm.DB
-	if useDB {
-		db, err = database.Connect(cfg.DatabaseURL)
-		if err != nil {
-			log.Fatalf("❌ Failed to connect to DB: %v", err)
-		}
-		if err := database.Migrate(db); err != nil {
-			log.Fatalf("❌ Failed to migrate schema: %v", err)
-		}
-	} else {
-		path, err := cliDBPath()
-		if err != nil {
-			log.Fatalf("❌ Failed to get CLI DB path: %v", err)
-		}
-		db, err = gorm.Open(sqlite.Open(path), &gorm.Config{})
-		if err != nil {
-			log.Fatalf("❌ Failed to open temp DB: %v", err)
-		}
-		if err := database.Migrate(db); err != nil {
-			log.Fatalf("❌ Failed to migrate schema: %v", err)
-		}
+	db, err := initDB(useDB, cfg)
+	if err != nil {
+		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
 
 	analysisService := services.NewAnalysisService(db)
