@@ -15,6 +15,11 @@ import (
 	"tagscale/internal/services"
 )
 
+// awsClientFactory allows tests to inject a mock AWS client.
+var awsClientFactory = func(region string) (services.CostExplorerAPI, error) {
+	return aws.NewClient(region)
+}
+
 func cliDBPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -113,7 +118,7 @@ func runScan(days int, useDB bool) {
 	}
 
 	// Initialize AWS client
-	awsClient, err := aws.NewClient(cfg.AWSRegion)
+	awsClient, err := awsClientFactory(cfg.AWSRegion)
 	if err != nil {
 		log.Fatalf("❌ Failed to init AWS client: %v", err)
 	}
