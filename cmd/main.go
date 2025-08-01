@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Initialize AWS client
-	awsClient, err := aws.NewClient(cfg.AWSRegion)
+	awsClient, err := aws.NewClient(cfg.AWSRegion, os.Getenv("AWS_PROFILE"))
 	if err != nil {
 		log.Fatal("Failed to initialize AWS client:", err)
 	}

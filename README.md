@@ -109,6 +109,14 @@ print a summary:
 ./bin/tagscale-cli summary
 ```
 
+You can override the AWS region and shared config profile or emit JSON instead of
+the default table output:
+
+```bash
+./bin/tagscale-cli scan --days 7 --region us-west-2 --profile my-profile
+./bin/tagscale-cli summary --output json
+```
+
 Sample output:
 
 ```text
@@ -130,8 +138,9 @@ Insights:
 
 ### Environment Variables
 
- - `DATABASE_URL` (optional): PostgreSQL connection string used with `--db` or when running the server
+- `DATABASE_URL` (optional): PostgreSQL connection string used with `--db` or when running the server
 - `AWS_REGION`: AWS region for Cost Explorer
+- `AWS_PROFILE` (optional): Shared config profile name used for AWS credentials
 - `SLACK_TOKEN`: Slack bot token for notifications
 - `EMAIL_SMTP_*`: Email configuration for notifications
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)

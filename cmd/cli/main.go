@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -16,8 +17,8 @@ import (
 )
 
 // awsClientFactory allows tests to inject a mock AWS client.
-var awsClientFactory = func(region string) (services.CostExplorerAPI, error) {
-	return aws.NewClient(region)
+var awsClientFactory = func(region, profile string) (services.CostExplorerAPI, error) {
+	return aws.NewClient(region, profile)
 }
 
 func cliDBPath() (string, error) {
@@ -67,8 +68,13 @@ func main() {
 }
 
 func NewCLI() *cobra.Command {
-	var days int
-	var useDB bool
+	var (
+		days    int
+		useDB   bool
+		region  string
+		profile string
+		output  string
+	)
 
 	rootCmd := &cobra.Command{
 		Use:   "tagscale",
@@ -76,13 +82,16 @@ func NewCLI() *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL (runs migrations)")
+	rootCmd.PersistentFlags().StringVar(&region, "region", os.Getenv("AWS_REGION"), "AWS region (default from AWS_REGION)")
+	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
+	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
 
 	// SCAN command
 	scanCmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		Run: func(cmd *cobra.Command, args []string) {
-			runScan(days, useDB)
+			runScan(days, useDB, region, profile, output)
 		},
 	}
 
@@ -93,7 +102,7 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			runSummary(useDB)
+			runSummary(useDB, output)
 		},
 	}
 
@@ -103,8 +112,10 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(days int, useDB bool) {
-	fmt.Println("🔍 Running TagScale scan...")
+func runScan(days int, useDB bool, region, profile, output string) {
+	if output == "table" {
+		fmt.Println("🔍 Running TagScale scan...")
+	}
 
 	// Load config
 	cfg, err := config.Load()
@@ -117,8 +128,12 @@ func runScan(days int, useDB bool) {
 		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
 
+	if region == "" {
+		region = cfg.AWSRegion
+	}
+
 	// Initialize AWS client
-	awsClient, err := awsClientFactory(cfg.AWSRegion)
+	awsClient, err := awsClientFactory(region, profile)
 	if err != nil {
 		log.Fatalf("❌ Failed to init AWS client: %v", err)
 	}
@@ -131,10 +146,14 @@ func runScan(days int, useDB bool) {
 		log.Fatalf("❌ Cost data collection failed: %v", err)
 	}
 
-	fmt.Println("✅ Cost data collected.")
+	if output == "json" {
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"message": "cost data collected"})
+	} else {
+		fmt.Println("✅ Cost data collected.")
+	}
 }
 
-func runSummary(useDB bool) {
+func runSummary(useDB bool, output string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
@@ -159,7 +178,11 @@ func runSummary(useDB bool) {
 		log.Fatalf("❌ Failed to fetch latest analysis: %v", err)
 	}
 
-	printAnalysis(latestAnalysis)
+	if output == "json" {
+		_ = json.NewEncoder(os.Stdout).Encode(latestAnalysis)
+	} else {
+		printAnalysis(latestAnalysis)
+	}
 }
 
 func printAnalysis(result services.AnalysisResult) {
