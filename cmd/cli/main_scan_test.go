@@ -51,10 +51,10 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	mockClient := &mockAWSClient{output: output}
 
 	origFactory := awsClientFactory
-	awsClientFactory = func(region string) (services.CostExplorerAPI, error) { return mockClient, nil }
+	awsClientFactory = func(region, profile string) (services.CostExplorerAPI, error) { return mockClient, nil }
 	defer func() { awsClientFactory = origFactory }()
 
-	runScan(1, true)
+	runScan(1, true, "", "", "table")
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)

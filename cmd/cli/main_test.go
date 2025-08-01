@@ -18,7 +18,7 @@ func TestRunSummaryRunsMigrationsWithDB(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	runSummary(true)
+	runSummary(true, "table")
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
