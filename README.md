@@ -46,7 +46,7 @@ cp .env.example .env
 make migrate
 ```
 
-Migrations will also run automatically when starting the server or when using `--db` with the CLI.
+Migrations will also run automatically when starting the server or when using `--migrate` with the CLI.
 
 5. Start the application:
 ```bash
@@ -91,8 +91,14 @@ make build-cli
 The binary will be created at `bin/tagscale-cli`.
 
 By default the CLI stores all data in-memory. Use the `--db` flag to persist results
-to the database configured by `DATABASE_URL`. When this flag is used the CLI
-automatically runs any pending migrations.
+to the database configured by `DATABASE_URL`. Use `--migrate` to run any pending
+database migrations. Migrations are skipped by default for faster startup.
+
+To apply migrations explicitly, include `--migrate` with your command, for example:
+
+```bash
+./bin/tagscale-cli scan --db --migrate
+```
 
 If `scan` and `summary` are run as separate commands without `--db`, each
 invocation starts with a fresh in-memory database and the scan results are lost

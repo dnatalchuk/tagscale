@@ -12,13 +12,13 @@ import (
 	"tagscale/internal/models"
 )
 
-func TestRunSummaryRunsMigrationsWithDB(t *testing.T) {
+func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	runSummary(true, "table")
+	runSummary(true, true, "table")
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
