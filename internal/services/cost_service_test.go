@@ -18,12 +18,21 @@ import (
 )
 
 type mockAWSClient struct {
-	output *costexplorer.GetCostAndUsageOutput
-	err    error
+	outputs []*costexplorer.GetCostAndUsageOutput
+	err     error
+	call    int
 }
 
-func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time) (*costexplorer.GetCostAndUsageOutput, error) {
-	return m.output, m.err
+func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.call >= len(m.outputs) {
+		return &costexplorer.GetCostAndUsageOutput{}, nil
+	}
+	out := m.outputs[m.call]
+	m.call++
+	return out, nil
 }
 
 func setupDB(t *testing.T) *gorm.DB {
@@ -50,7 +59,7 @@ func TestCollectCostData(t *testing.T) {
 			},
 		},
 	}
-	svc := services.NewCostService(&mockAWSClient{output: output}, db)
+	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	err := svc.CollectCostData(1)
 	require.NoError(t, err)
 
@@ -65,6 +74,49 @@ func TestCollectCostData(t *testing.T) {
 	var tags map[string]string
 	require.NoError(t, json.Unmarshal([]byte(recs[0].Tags), &tags))
 	require.Equal(t, "backend", tags["Team"])
+}
+
+func TestCollectCostDataPagination(t *testing.T) {
+	db := setupDB(t)
+	page1 := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-01"), End: aws.String("2023-01-02")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonEC2", "123456789012", "us-east-1", "i-abc123", "backend"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("5"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+		NextPageToken: aws.String("token1"),
+	}
+	page2 := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-02"), End: aws.String("2023-01-03")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonS3", "123456789012", "us-east-1", "bucket123", "frontend"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("3"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+	}
+	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}}, db)
+	require.NoError(t, svc.CollectCostData(1))
+
+	var recs []models.CostRecord
+	require.NoError(t, db.Find(&recs).Error)
+	require.Len(t, recs, 2)
+	require.Equal(t, "AmazonEC2", recs[0].Service)
+	require.Equal(t, "AmazonS3", recs[1].Service)
 }
 
 func TestGetCostSummary(t *testing.T) {

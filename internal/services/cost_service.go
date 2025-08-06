@@ -10,16 +10,18 @@ import (
 	"tagscale/internal/models"
 
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
+	"github.com/aws/aws-sdk-go-v2/service/costexplorer/types"
 	"gorm.io/gorm"
 )
 
 // CostExplorerAPI describes the subset of the AWS Cost Explorer client used by
 // CostService. Implementations should return cost data grouped by service,
 // account, region, resource ID and team tag so that CollectCostData can attach
-// tags and resource identifiers to saved records. Defining this interface allows
-// the service to be tested with a mock implementation.
+// tags and resource identifiers to saved records. The optional nextToken
+// parameter allows callers to page through large result sets. Defining this
+// interface allows the service to be tested with a mock implementation.
 type CostExplorerAPI interface {
-	GetCostAndUsage(ctx context.Context, startDate, endDate time.Time) (*costexplorer.GetCostAndUsageOutput, error)
+	GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error)
 }
 
 type CostService struct {
@@ -61,14 +63,29 @@ func (s *CostService) CollectCostData(days int) error {
 	endDate := time.Now()
 	startDate := endDate.AddDate(0, 0, -days)
 
-	result, err := s.awsClient.GetCostAndUsage(ctx, startDate, endDate)
-	if err != nil {
-		return fmt.Errorf("failed to get cost data: %w", err)
+	// Retrieve all pages from Cost Explorer. The API returns a NextPageToken when
+	// additional results are available. We keep calling until no token is
+	// returned, accumulating the ResultsByTime across pages before
+	// processing.
+	var (
+		nextToken  *string
+		allResults []types.ResultByTime
+	)
+	for {
+		result, err := s.awsClient.GetCostAndUsage(ctx, startDate, endDate, nextToken)
+		if err != nil {
+			return fmt.Errorf("failed to get cost data: %w", err)
+		}
+		allResults = append(allResults, result.ResultsByTime...)
+		if result.NextPageToken == nil || *result.NextPageToken == "" {
+			break
+		}
+		nextToken = result.NextPageToken
 	}
 
 	var costRecords []models.CostRecord
 
-	for _, resultByTime := range result.ResultsByTime {
+	for _, resultByTime := range allResults {
 		date, err := time.Parse("2006-01-02", *resultByTime.TimePeriod.Start)
 		if err != nil {
 			continue
