@@ -17,6 +17,13 @@ type AnalysisService struct {
 	db *gorm.DB
 }
 
+// compiledTeamMapping augments TeamMapping with a compiled regex pattern
+// for faster matching when PatternType requires regex evaluation.
+type compiledTeamMapping struct {
+	models.TeamMapping
+	pattern *regexp.Regexp
+}
+
 // AnalysisResult represents the parsed result of a cost analysis run.
 type AnalysisResult struct {
 	TotalCost       float64
@@ -118,8 +125,20 @@ func (s *AnalysisService) InferTeamOwnership() []models.CostSummary {
 	var teamMappings []models.TeamMapping
 	s.db.Order("priority DESC").Find(&teamMappings)
 
+	// Precompile regex patterns for mappings that require it
+	compiled := make([]compiledTeamMapping, 0, len(teamMappings))
+	for _, m := range teamMappings {
+		cm := compiledTeamMapping{TeamMapping: m}
+		if m.PatternType == "service" || m.PatternType == "resource_name" {
+			if re, err := regexp.Compile(m.Pattern); err == nil {
+				cm.pattern = re
+			}
+		}
+		compiled = append(compiled, cm)
+	}
+
 	for _, record := range costRecords {
-		team := s.inferTeamFromRecord(record, teamMappings)
+		team := s.inferTeamFromRecord(record, compiled)
 		teamCosts[team] += record.Cost
 	}
 
@@ -134,15 +153,15 @@ func (s *AnalysisService) InferTeamOwnership() []models.CostSummary {
 	return results
 }
 
-func (s *AnalysisService) inferTeamFromRecord(record models.CostRecord, mappings []models.TeamMapping) string {
+func (s *AnalysisService) inferTeamFromRecord(record models.CostRecord, mappings []compiledTeamMapping) string {
 	for _, mapping := range mappings {
 		switch mapping.PatternType {
 		case "service":
-			if matched, _ := regexp.MatchString(mapping.Pattern, record.Service); matched {
+			if mapping.pattern != nil && mapping.pattern.MatchString(record.Service) {
 				return mapping.Team
 			}
 		case "resource_name":
-			if matched, _ := regexp.MatchString(mapping.Pattern, record.ResourceID); matched {
+			if mapping.pattern != nil && mapping.pattern.MatchString(record.ResourceID) {
 				return mapping.Team
 			}
 		case "tag":
