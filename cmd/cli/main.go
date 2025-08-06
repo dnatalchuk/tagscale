@@ -33,7 +33,7 @@ func cliDBPath() (string, error) {
 	return filepath.Join(dir, "cli.db"), nil
 }
 
-func initDB(useDB bool, cfg *config.Config) (*gorm.DB, error) {
+func initDB(useDB, migrate bool, cfg *config.Config) (*gorm.DB, error) {
 	var (
 		db  *gorm.DB
 		err error
@@ -54,8 +54,10 @@ func initDB(useDB bool, cfg *config.Config) (*gorm.DB, error) {
 		}
 	}
 
-	if err := database.Migrate(db); err != nil {
-		return nil, err
+	if migrate {
+		if err := database.Migrate(db); err != nil {
+			return nil, err
+		}
 	}
 
 	return db, nil
@@ -71,6 +73,7 @@ func NewCLI() *cobra.Command {
 	var (
 		days    int
 		useDB   bool
+		migrate bool
 		region  string
 		profile string
 		output  string
@@ -81,7 +84,8 @@ func NewCLI() *cobra.Command {
 		Short: "TagScale CLI - Cloud cost insights in your terminal",
 	}
 
-	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL (runs migrations)")
+	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
+	rootCmd.PersistentFlags().BoolVar(&migrate, "migrate", false, "Run database migrations on startup")
 	rootCmd.PersistentFlags().StringVar(&region, "region", os.Getenv("AWS_REGION"), "AWS region (default from AWS_REGION)")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
 	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
@@ -91,7 +95,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		Run: func(cmd *cobra.Command, args []string) {
-			runScan(days, useDB, region, profile, output)
+			runScan(days, useDB, migrate, region, profile, output)
 		},
 	}
 
@@ -102,7 +106,7 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			runSummary(useDB, output)
+			runSummary(useDB, migrate, output)
 		},
 	}
 
@@ -112,7 +116,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(days int, useDB bool, region, profile, output string) {
+func runScan(days int, useDB, migrate bool, region, profile, output string) {
 	if output == "table" {
 		fmt.Println("🔍 Running TagScale scan...")
 	}
@@ -123,7 +127,7 @@ func runScan(days int, useDB bool, region, profile, output string) {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	db, err := initDB(useDB, cfg)
+	db, err := initDB(useDB, migrate, cfg)
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
@@ -153,13 +157,13 @@ func runScan(days int, useDB bool, region, profile, output string) {
 	}
 }
 
-func runSummary(useDB bool, output string) {
+func runSummary(useDB, migrate bool, output string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 
-	db, err := initDB(useDB, cfg)
+	db, err := initDB(useDB, migrate, cfg)
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
