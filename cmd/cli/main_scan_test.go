@@ -23,7 +23,7 @@ type mockAWSClient struct {
 	err    error
 }
 
-func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time) (*costexplorer.GetCostAndUsageOutput, error) {
+func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
 	return m.output, m.err
 }
 

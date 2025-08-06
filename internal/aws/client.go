@@ -34,7 +34,7 @@ func NewClient(region, profile string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time) (*costexplorer.GetCostAndUsageOutput, error) {
+func (c *Client) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
 	input := &costexplorer.GetCostAndUsageInput{
 		TimePeriod: &types.DateInterval{
 			Start: aws.String(startDate.Format("2006-01-02")),
@@ -64,6 +64,7 @@ func (c *Client) GetCostAndUsage(ctx context.Context, startDate, endDate time.Ti
 				Key:  aws.String("Team"),
 			},
 		},
+		NextPageToken: nextToken,
 	}
 
 	return c.costExplorer.GetCostAndUsage(ctx, input)
