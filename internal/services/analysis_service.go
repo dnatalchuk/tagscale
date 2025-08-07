@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,6 +31,9 @@ type AnalysisResult struct {
 	UntaggedCost    float64
 	UntaggedPercent float64
 	TopServices     []models.CostSummary
+	TopAccounts     []models.CostSummary
+	TopRegions      []models.CostSummary
+	CostByTeam      []models.CostSummary
 	Insights        []string
 }
 
@@ -37,7 +41,7 @@ func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
 
-func (s *AnalysisService) RunAnalysis() error {
+func (s *AnalysisService) RunAnalysis(limit int) error {
 	today := time.Now().Truncate(24 * time.Hour)
 
 	// Get total cost
@@ -60,19 +64,23 @@ func (s *AnalysisService) RunAnalysis() error {
 	}
 
 	// Get top services
-	topServices, _ := s.GetTopCosts(5, "service")
+	topServices, _ := s.GetTopCosts(limit, "service")
 	topServicesJSON, _ := json.Marshal(topServices)
 
 	// Get top accounts
-	topAccounts, _ := s.GetTopCosts(5, "account")
+	topAccounts, _ := s.GetTopCosts(limit, "account")
 	topAccountsJSON, _ := json.Marshal(topAccounts)
 
 	// Get top regions
-	topRegions, _ := s.GetTopCosts(5, "region")
+	topRegions, _ := s.GetTopCosts(limit, "region")
 	topRegionsJSON, _ := json.Marshal(topRegions)
 
 	// Infer team ownership
 	costByTeam := s.InferTeamOwnership()
+	sort.Slice(costByTeam, func(i, j int) bool { return costByTeam[i].TotalCost > costByTeam[j].TotalCost })
+	if len(costByTeam) > limit {
+		costByTeam = costByTeam[:limit]
+	}
 	costByTeamJSON, _ := json.Marshal(costByTeam)
 
 	// Generate insights
@@ -198,7 +206,7 @@ func (s *AnalysisService) GenerateInsights(totalCost, untaggedPercent float64, t
 // structure.
 func (s *AnalysisService) GetLatestAnalysis() (AnalysisResult, error) {
 	var analysis models.CostAnalysis
-	if err := s.db.Order("date desc").First(&analysis).Error; err != nil {
+	if err := s.db.Order("id desc").First(&analysis).Error; err != nil {
 		return AnalysisResult{}, fmt.Errorf("failed to fetch latest analysis: %w", err)
 	}
 
@@ -208,9 +216,10 @@ func (s *AnalysisService) GetLatestAnalysis() (AnalysisResult, error) {
 		UntaggedPercent: analysis.UntaggedPercent,
 	}
 
-	if err := json.Unmarshal([]byte(analysis.TopServices), &result.TopServices); err != nil {
-		// ignore unmarshalling error but log for debugging
-	}
+	_ = json.Unmarshal([]byte(analysis.TopServices), &result.TopServices)
+	_ = json.Unmarshal([]byte(analysis.TopAccounts), &result.TopAccounts)
+	_ = json.Unmarshal([]byte(analysis.TopRegions), &result.TopRegions)
+	_ = json.Unmarshal([]byte(analysis.CostByTeam), &result.CostByTeam)
 	_ = json.Unmarshal([]byte(analysis.Insights), &result.Insights)
 
 	return result, nil

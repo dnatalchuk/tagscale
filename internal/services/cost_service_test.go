@@ -148,7 +148,7 @@ func TestRunAnalysis(t *testing.T) {
 	require.NoError(t, db.Create(&recs).Error)
 
 	svc := services.NewAnalysisService(db)
-	require.NoError(t, svc.RunAnalysis())
+	require.NoError(t, svc.RunAnalysis(5))
 
 	var analysis models.CostAnalysis
 	require.NoError(t, db.First(&analysis).Error)

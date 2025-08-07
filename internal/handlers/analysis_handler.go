@@ -28,7 +28,7 @@ func (h *AnalysisHandler) GetLatestAnalysis(c *gin.Context) {
 
 func (h *AnalysisHandler) RunAnalysis(c *gin.Context) {
 	go func() {
-		h.analysisService.RunAnalysis()
+		h.analysisService.RunAnalysis(5)
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Analysis started"})
