@@ -123,7 +123,13 @@ the default table output (supported values: `table`, `json`):
 ./bin/tagscale-cli summary --output json
 ```
 
-Sample output:
+To focus on specific dimensions, the `summary` command supports grouping and limiting:
+
+```bash
+./bin/tagscale-cli summary --group-by account --limit 3
+```
+
+Sample output grouped by account:
 
 ```text
 🔍 Running TagScale scan...
@@ -132,9 +138,9 @@ Sample output:
 💰 Total Cost: $123.45
 🏷️ Untagged Cost: $45.67 (37.0%)
 
-Top Services:
- • AmazonEC2                    $100.00
- • AmazonS3                     $20.00
+Top Accounts:
+ • 123456789012                $100.00
+ • 210987654321                $20.00
 
 Insights:
  • 37.0% of your costs are untagged. Consider implementing tagging policies.

@@ -13,6 +13,7 @@ import (
 	"tagscale/internal/aws"
 	"tagscale/internal/config"
 	"tagscale/internal/database"
+	"tagscale/internal/models"
 	"tagscale/internal/services"
 )
 
@@ -83,6 +84,8 @@ func NewCLI() *cobra.Command {
 		region  string
 		profile string
 		output  string
+		limit   int
+		groupBy string
 	)
 
 	rootCmd := &cobra.Command{
@@ -119,9 +122,12 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			runSummary(useDB, migrate, output)
+			runSummary(useDB, migrate, output, groupBy, limit)
 		},
 	}
+
+	summaryCmd.Flags().IntVar(&limit, "limit", 5, "Limit number of results")
+	summaryCmd.Flags().StringVar(&groupBy, "group-by", "service", "Group costs by: service, account, region, or team")
 
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(summaryCmd)
@@ -170,7 +176,7 @@ func runScan(days int, useDB, migrate bool, region, profile, output string) {
 	}
 }
 
-func runSummary(useDB, migrate bool, output string) {
+func runSummary(useDB, migrate bool, output, groupBy string, limit int) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
@@ -184,7 +190,7 @@ func runSummary(useDB, migrate bool, output string) {
 	analysisService := services.NewAnalysisService(db)
 
 	// Run analysis so we have fresh data
-	err = analysisService.RunAnalysis()
+	err = analysisService.RunAnalysis(limit)
 	if err != nil {
 		log.Fatalf("❌ Analysis failed: %v", err)
 	}
@@ -198,17 +204,45 @@ func runSummary(useDB, migrate bool, output string) {
 	if output == "json" {
 		_ = json.NewEncoder(os.Stdout).Encode(latestAnalysis)
 	} else {
-		printAnalysis(latestAnalysis)
+		printAnalysis(latestAnalysis, groupBy)
 	}
 }
 
-func printAnalysis(result services.AnalysisResult) {
+func printAnalysis(result services.AnalysisResult, groupBy string) {
 	fmt.Printf("\n💰 Total Cost: $%.2f\n", result.TotalCost)
 	fmt.Printf("🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
 
-	fmt.Println("\nTop Services:")
-	for _, s := range result.TopServices {
-		fmt.Printf(" • %-30s $%.2f\n", s.Service, s.TotalCost)
+	var (
+		items []models.CostSummary
+		title string
+	)
+	switch groupBy {
+	case "account":
+		items = result.TopAccounts
+		title = "Top Accounts"
+	case "region":
+		items = result.TopRegions
+		title = "Top Regions"
+	case "team":
+		items = result.CostByTeam
+		title = "Cost By Team"
+	default:
+		items = result.TopServices
+		title = "Top Services"
+	}
+
+	fmt.Printf("\n%s:\n", title)
+	for _, s := range items {
+		label := s.Service
+		switch groupBy {
+		case "account":
+			label = s.Account
+		case "region":
+			label = s.Region
+		case "team":
+			label = s.Team
+		}
+		fmt.Printf(" • %-30s $%.2f\n", label, s.TotalCost)
 	}
 
 	fmt.Println("\nInsights:")
