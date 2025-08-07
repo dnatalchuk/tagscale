@@ -6,6 +6,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"gorm.io/driver/sqlite"
@@ -78,14 +81,14 @@ func main() {
 
 func NewCLI() *cobra.Command {
 	var (
-		days    int
-		useDB   bool
-		migrate bool
-		region  string
-		profile string
-		output  string
-		limit   int
-		groupBy string
+		dateRange string
+		useDB     bool
+		migrate   bool
+		region    string
+		profile   string
+		output    string
+		limit     int
+		groupBy   string
 	)
 
 	rootCmd := &cobra.Command{
@@ -111,11 +114,11 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		Run: func(cmd *cobra.Command, args []string) {
-			runScan(days, useDB, migrate, region, profile, output)
+			runScan(dateRange, useDB, migrate, region, profile, output)
 		},
 	}
 
-	scanCmd.Flags().IntVar(&days, "days", 30, "Number of days to look back")
+	scanCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
 
 	// SUMMARY command
 	summaryCmd := &cobra.Command{
@@ -135,9 +138,14 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(days int, useDB, migrate bool, region, profile, output string) {
+func runScan(rangeStr string, useDB, migrate bool, region, profile, output string) {
 	if output == "table" {
 		fmt.Println("🔍 Running TagScale scan...")
+	}
+
+	startDate, endDate, err := parseDateRange(rangeStr)
+	if err != nil {
+		log.Fatalf("❌ Invalid range: %v", err)
 	}
 
 	// Load config
@@ -164,7 +172,7 @@ func runScan(days int, useDB, migrate bool, region, profile, output string) {
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(days)
+	err = costService.CollectCostData(startDate, endDate)
 	if err != nil {
 		log.Fatalf("❌ Cost data collection failed: %v", err)
 	}
@@ -174,6 +182,35 @@ func runScan(days int, useDB, migrate bool, region, profile, output string) {
 	} else {
 		fmt.Println("✅ Cost data collected.")
 	}
+}
+
+func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
+	now := time.Now().Truncate(24 * time.Hour)
+	if rangeStr == "" {
+		return now.AddDate(0, 0, -30), now, nil
+	}
+
+	if n, err := strconv.Atoi(rangeStr); err == nil {
+		return now.AddDate(0, 0, -n), now, nil
+	}
+
+	parts := strings.Split(rangeStr, ":")
+	start, err := time.Parse("2006-01-02", parts[0])
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid start date: %w", err)
+	}
+
+	var end time.Time
+	if len(parts) > 1 && parts[1] != "" {
+		end, err = time.Parse("2006-01-02", parts[1])
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid end date: %w", err)
+		}
+	} else {
+		end = now
+	}
+
+	return start, end, nil
 }
 
 func runSummary(useDB, migrate bool, output, groupBy string, limit int) {
