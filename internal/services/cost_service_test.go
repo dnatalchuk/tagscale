@@ -60,7 +60,9 @@ func TestCollectCostData(t *testing.T) {
 		},
 	}
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
-	err := svc.CollectCostData(1)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	err := svc.CollectCostData(start, end)
 	require.NoError(t, err)
 
 	var recs []models.CostRecord
@@ -110,7 +112,9 @@ func TestCollectCostDataPagination(t *testing.T) {
 		},
 	}
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}}, db)
-	require.NoError(t, svc.CollectCostData(1))
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	require.NoError(t, svc.CollectCostData(start, end))
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)

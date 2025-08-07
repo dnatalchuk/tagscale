@@ -82,7 +82,9 @@ func (h *CostHandler) CollectCosts(c *gin.Context) {
 	}
 
 	go func() {
-		h.costService.CollectCostData(days)
+		endDate := time.Now()
+		startDate := endDate.AddDate(0, 0, -days)
+		h.costService.CollectCostData(startDate, endDate)
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Cost collection started"})

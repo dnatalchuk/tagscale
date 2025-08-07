@@ -50,18 +50,10 @@ func NewCostService(awsClient CostExplorerAPI, db *gorm.DB) *CostService {
 	}
 }
 
-// CollectCostData retrieves AWS cost data for the provided number of days
-// and stores the results in the database. If days <= 0 a default of 30 days
-// is used.
-func (s *CostService) CollectCostData(days int) error {
-	if days <= 0 {
-		days = 30
-	}
-
+// CollectCostData retrieves AWS cost data for the provided time range
+// and stores the results in the database.
+func (s *CostService) CollectCostData(startDate, endDate time.Time) error {
 	ctx := context.Background()
-
-	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -days)
 
 	// Retrieve all pages from Cost Explorer. The API returns a NextPageToken when
 	// additional results are available. We keep calling until no token is

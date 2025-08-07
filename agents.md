@@ -34,7 +34,7 @@
 - De-duplicates and persists cost entries when `--db` is used
 
 **Triggers**:
-- CLI: `tagscale-cli scan --days 7`
+- CLI: `tagscale-cli scan --range 7`
 - API: `POST /api/v1/costs/collect`
 - Server: Via `DATA_COLLECTION_INTERVAL`
 
@@ -125,7 +125,7 @@ You can simulate full workflows with the CLI:
 
 ```bash
 # Collect cost data and store in memory
-./bin/tagscale-cli scan --days 7
+./bin/tagscale-cli scan --range 7
 
 # Run inference
 ./bin/tagscale-cli summary

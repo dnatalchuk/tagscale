@@ -111,7 +111,7 @@ Run a quick scan for the last 7 days without saving results to a database and th
 print a summary:
 
 ```bash
-./bin/tagscale-cli scan --days 7
+./bin/tagscale-cli scan --range 7
 ./bin/tagscale-cli summary
 ```
 
@@ -119,9 +119,13 @@ You can override the AWS region and shared config profile or emit JSON instead o
 the default table output (supported values: `table`, `json`):
 
 ```bash
-./bin/tagscale-cli scan --days 7 --region us-west-2 --profile my-profile
+./bin/tagscale-cli scan --range 7 --region us-west-2 --profile my-profile
 ./bin/tagscale-cli summary --output json
 ```
+
+The `--range` flag accepts either a number of days (e.g. `7` for the last seven
+days) or an explicit date or date range using the format
+`YYYY-MM-DD` or `YYYY-MM-DD:YYYY-MM-DD`.
 
 To focus on specific dimensions, the `summary` command supports grouping and limiting:
 
