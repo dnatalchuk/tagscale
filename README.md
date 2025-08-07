@@ -116,7 +116,7 @@ print a summary:
 ```
 
 You can override the AWS region and shared config profile or emit JSON instead of
-the default table output:
+the default table output (supported values: `table`, `json`):
 
 ```bash
 ./bin/tagscale-cli scan --days 7 --region us-west-2 --profile my-profile
