@@ -21,6 +21,12 @@ var awsClientFactory = func(region, profile string) (services.CostExplorerAPI, e
 	return aws.NewClient(region, profile)
 }
 
+// allowedOutputFormats lists the supported values for the --output flag.
+var allowedOutputFormats = map[string]struct{}{
+	"table": {},
+	"json":  {},
+}
+
 func cliDBPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -82,6 +88,13 @@ func NewCLI() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "tagscale",
 		Short: "TagScale CLI - Cloud cost insights in your terminal",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if _, ok := allowedOutputFormats[output]; !ok {
+				_ = cmd.Help()
+				return fmt.Errorf("invalid output format %q: supported formats are table and json", output)
+			}
+			return nil
+		},
 	}
 
 	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
