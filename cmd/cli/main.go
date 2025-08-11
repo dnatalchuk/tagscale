@@ -108,6 +108,10 @@ func NewCLI() *cobra.Command {
 				return fmt.Errorf("invalid output format %q: supported formats are table and json", output)
 			}
 			if cmd.Name() == "summary" {
+				if limit <= 0 {
+					_ = cmd.Help()
+					return fmt.Errorf("limit must be greater than 0")
+				}
 				if _, ok := allowedGroupByOptions[groupBy]; !ok {
 					_ = cmd.Help()
 					return fmt.Errorf("invalid group-by value %q: supported options are service, account, region, and team", groupBy)
@@ -143,7 +147,7 @@ func NewCLI() *cobra.Command {
 		},
 	}
 
-	summaryCmd.Flags().IntVar(&limit, "limit", 5, "Limit number of results")
+	summaryCmd.Flags().IntVar(&limit, "limit", 5, "Limit number of results (must be > 0)")
 	summaryCmd.Flags().StringVar(&groupBy, "group-by", "service", "Group costs by: service, account, region, or team")
 	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
 
