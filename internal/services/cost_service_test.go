@@ -35,6 +35,19 @@ func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate 
 	return out, nil
 }
 
+type timeoutMockAWSClient struct {
+	delay time.Duration
+}
+
+func (m *timeoutMockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	select {
+	case <-time.After(m.delay):
+		return &costexplorer.GetCostAndUsageOutput{}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 func setupDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -62,7 +75,7 @@ func TestCollectCostData(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(start, end)
+	err := svc.CollectCostData(start, end, 30*time.Second)
 	require.NoError(t, err)
 
 	var recs []models.CostRecord
@@ -114,13 +127,23 @@ func TestCollectCostDataPagination(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(start, end))
+	require.NoError(t, svc.CollectCostData(start, end, 30*time.Second))
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
 	require.Len(t, recs, 2)
 	require.Equal(t, "AmazonEC2", recs[0].Service)
 	require.Equal(t, "AmazonS3", recs[1].Service)
+}
+
+func TestCollectCostDataTimeout(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(&timeoutMockAWSClient{delay: 50 * time.Millisecond}, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	err := svc.CollectCostData(start, end, 10*time.Millisecond)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestGetCostSummary(t *testing.T) {

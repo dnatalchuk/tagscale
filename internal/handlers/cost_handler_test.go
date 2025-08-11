@@ -10,6 +10,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"tagscale/internal/config"
 	"tagscale/internal/handlers"
 	"tagscale/internal/models"
 	"tagscale/internal/services"
@@ -24,7 +25,7 @@ func setupCostService(t *testing.T) *services.CostService {
 
 func TestGetCostSummaryInvalidGroupBy(t *testing.T) {
 	service := setupCostService(t)
-	handler := handlers.NewCostHandler(service)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -39,7 +40,7 @@ func TestGetCostSummaryInvalidGroupBy(t *testing.T) {
 
 func TestGetTopCostsInvalidGroupBy(t *testing.T) {
 	service := setupCostService(t)
-	handler := handlers.NewCostHandler(service)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

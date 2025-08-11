@@ -34,7 +34,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(gin.Recovery())
 
 	// Initialize handlers
-	costHandler := handlers.NewCostHandler(s.costService)
+	costHandler := handlers.NewCostHandler(s.costService, s.config)
 	analysisHandler := handlers.NewAnalysisHandler(s.analysisService)
 	dashboardHandler := handlers.NewDashboardHandler(s.costService, s.analysisService)
 
