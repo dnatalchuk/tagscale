@@ -21,6 +21,8 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 	}{
 		{"valid token", "Bearer secret", http.StatusOK},
 		{"valid token with spaces", "  Bearer    secret  ", http.StatusOK},
+		{"lowercase bearer", "bearer secret", http.StatusOK},
+		{"uppercase bearer", "BEARER secret", http.StatusOK},
 		{"invalid token", "Bearer wrong", http.StatusUnauthorized},
 		{"missing header", "", http.StatusUnauthorized},
 	}
