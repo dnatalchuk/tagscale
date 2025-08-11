@@ -52,8 +52,11 @@ func NewCostService(awsClient CostExplorerAPI, db *gorm.DB) *CostService {
 
 // CollectCostData retrieves AWS cost data for the provided time range
 // and stores the results in the database.
-func (s *CostService) CollectCostData(startDate, endDate time.Time) error {
-	ctx := context.Background()
+// The provided timeout controls how long the AWS API calls may take before
+// being canceled.
+func (s *CostService) CollectCostData(startDate, endDate time.Time, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	// Retrieve all pages from Cost Explorer. The API returns a NextPageToken when
 	// additional results are available. We keep calling until no token is
@@ -130,7 +133,7 @@ func (s *CostService) CollectCostData(startDate, endDate time.Time) error {
 
 	// Batch insert cost records
 	if len(costRecords) > 0 {
-		if err := s.db.CreateInBatches(costRecords, 100).Error; err != nil {
+		if err := s.db.WithContext(ctx).CreateInBatches(costRecords, 100).Error; err != nil {
 			return fmt.Errorf("failed to insert cost records: %w", err)
 		}
 	}

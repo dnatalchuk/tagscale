@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"tagscale/internal/config"
 	"tagscale/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -13,10 +14,11 @@ import (
 
 type CostHandler struct {
 	costService *services.CostService
+	config      *config.Config
 }
 
-func NewCostHandler(costService *services.CostService) *CostHandler {
-	return &CostHandler{costService: costService}
+func NewCostHandler(costService *services.CostService, cfg *config.Config) *CostHandler {
+	return &CostHandler{costService: costService, config: cfg}
 }
 
 func (h *CostHandler) GetCostSummary(c *gin.Context) {
@@ -84,7 +86,8 @@ func (h *CostHandler) CollectCosts(c *gin.Context) {
 	go func() {
 		endDate := time.Now()
 		startDate := endDate.AddDate(0, 0, -days)
-		h.costService.CollectCostData(startDate, endDate)
+		timeout := time.Duration(h.config.AWSRequestTimeout) * time.Second
+		h.costService.CollectCostData(startDate, endDate, timeout)
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Cost collection started"})

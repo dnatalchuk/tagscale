@@ -95,7 +95,7 @@ func startBackgroundWorkers(costService *services.CostService, analysisService *
 				log.Println("Starting cost data collection...")
 				end := time.Now()
 				start := end.AddDate(0, 0, -30)
-				if err := costService.CollectCostData(start, end); err != nil {
+				if err := costService.CollectCostData(start, end, time.Duration(cfg.AWSRequestTimeout)*time.Second); err != nil {
 					log.Printf("Cost data collection failed: %v", err)
 				}
 			}

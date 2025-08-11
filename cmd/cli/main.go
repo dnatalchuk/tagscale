@@ -172,7 +172,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(startDate, endDate)
+	err = costService.CollectCostData(startDate, endDate, time.Duration(cfg.AWSRequestTimeout)*time.Second)
 	if err != nil {
 		log.Fatalf("❌ Cost data collection failed: %v", err)
 	}

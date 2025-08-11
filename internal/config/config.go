@@ -13,6 +13,7 @@ type Config struct {
 	Port                   int
 	DatabaseURL            string
 	AWSRegion              string
+	AWSRequestTimeout      int // seconds
 	SlackToken             string
 	SlackChannel           string
 	EmailSMTPHost          string
@@ -34,6 +35,7 @@ func Load() (*Config, error) {
 		Port:                   getEnvAsInt("PORT", 8080),
 		DatabaseURL:            getEnv("DATABASE_URL", "postgres://user:password@localhost/tagscale?sslmode=disable"),
 		AWSRegion:              getEnv("AWS_REGION", "us-east-1"),
+		AWSRequestTimeout:      getEnvAsInt("AWS_REQUEST_TIMEOUT", 30),
 		SlackToken:             getEnv("SLACK_TOKEN", ""),
 		SlackChannel:           getEnv("SLACK_CHANNEL", "#general"),
 		EmailSMTPHost:          getEnv("EMAIL_SMTP_HOST", ""),
