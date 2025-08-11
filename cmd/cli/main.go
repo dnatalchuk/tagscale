@@ -200,29 +200,40 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 }
 
 func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
-	now := time.Now().Truncate(24 * time.Hour)
+	now := time.Now().UTC().Truncate(24 * time.Hour)
 	if rangeStr == "" {
 		return now.AddDate(0, 0, -30), now, nil
 	}
 
 	if n, err := strconv.Atoi(rangeStr); err == nil {
-		return now.AddDate(0, 0, -n), now, nil
+		if n < 0 {
+			return time.Time{}, time.Time{}, fmt.Errorf("days must be non-negative")
+		}
+		start := now.AddDate(0, 0, -n)
+		if now.Before(start) {
+			return time.Time{}, time.Time{}, fmt.Errorf("start date %s is after end date %s", start.Format("2006-01-02"), now.Format("2006-01-02"))
+		}
+		return start, now, nil
 	}
 
 	parts := strings.Split(rangeStr, ":")
-	start, err := time.Parse("2006-01-02", parts[0])
+	start, err := time.ParseInLocation("2006-01-02", parts[0], time.UTC)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid start date: %w", err)
 	}
 
 	var end time.Time
 	if len(parts) > 1 && parts[1] != "" {
-		end, err = time.Parse("2006-01-02", parts[1])
+		end, err = time.ParseInLocation("2006-01-02", parts[1], time.UTC)
 		if err != nil {
 			return time.Time{}, time.Time{}, fmt.Errorf("invalid end date: %w", err)
 		}
 	} else {
 		end = now
+	}
+
+	if end.Before(start) {
+		return time.Time{}, time.Time{}, fmt.Errorf("start date %s is after end date %s", start.Format("2006-01-02"), end.Format("2006-01-02"))
 	}
 
 	return start, end, nil
