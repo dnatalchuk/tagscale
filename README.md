@@ -90,6 +90,12 @@ make build-cli
 
 The binary will be created at `bin/tagscale-cli`.
 
+Check the installed version:
+
+```bash
+./bin/tagscale-cli --version
+```
+
 By default the CLI stores all data in-memory. Use the `--db` flag to persist results
 to the database configured by `DATABASE_URL`. When the built-in SQLite database is used,
 TagScale places it in `~/.tagscale/cli.db`. The `~/.tagscale` directory is created with
