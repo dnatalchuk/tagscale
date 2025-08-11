@@ -178,6 +178,12 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
 
+	dbConn, err := db.DB()
+	if err != nil {
+		log.Fatalf("❌ Failed to get DB connection: %v", err)
+	}
+	defer dbConn.Close()
+
 	if region == "" {
 		region = cfg.AWSRegion
 	}
@@ -258,6 +264,12 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 	if err != nil {
 		log.Fatalf("❌ Failed to initialize DB: %v", err)
 	}
+
+	dbConn, err := db.DB()
+	if err != nil {
+		log.Fatalf("❌ Failed to get DB connection: %v", err)
+	}
+	defer dbConn.Close()
 
 	analysisService := services.NewAnalysisService(db)
 

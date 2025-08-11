@@ -48,6 +48,25 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	require.True(t, db.Migrator().HasTable(&models.TeamMapping{}))
 }
 
+func TestRunSummaryClosesDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	runSummary("30", true, true, "table", "service", 5)
+
+	fds, err := os.ReadDir("/proc/self/fd")
+	require.NoError(t, err)
+	for _, fd := range fds {
+		link, err := os.Readlink(filepath.Join("/proc/self/fd", fd.Name()))
+		if err != nil {
+			continue
+		}
+		require.NotContains(t, link, dbPath)
+	}
+}
+
 func TestCLIOutputFormatValidation(t *testing.T) {
 	cli := NewCLI()
 	cli.AddCommand(&cobra.Command{Use: "noop", Run: func(cmd *cobra.Command, args []string) {}})
