@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -47,6 +48,57 @@ func TestInferTeamOwnershipRegex(t *testing.T) {
 	require.InDelta(t, 1.0, costs["compute"], 0.001)
 	require.InDelta(t, 2.0, costs["storage"], 0.001)
 	require.InDelta(t, 3.0, costs["unassigned"], 0.001)
+}
+
+func TestInferTeamOwnershipTagExact(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	tagJSON, _ := json.Marshal(map[string]string{"Team": "platform"})
+	recs := []models.CostRecord{
+		{Tags: string(tagJSON), Cost: 1},
+	}
+	require.NoError(t, db.Create(&recs).Error)
+
+	mappings := []models.TeamMapping{
+		{Pattern: "platform", PatternType: "tag", Team: "plat"},
+	}
+	require.NoError(t, db.Create(&mappings).Error)
+
+	svc := services.NewAnalysisService(db)
+	results := svc.InferTeamOwnership()
+
+	costs := make(map[string]float64)
+	for _, r := range results {
+		costs[r.Team] = r.TotalCost
+	}
+
+	require.InDelta(t, 1.0, costs["plat"], 0.001)
+}
+
+func TestInferTeamOwnershipTagPartial(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	tagJSON, _ := json.Marshal(map[string]string{"Team": "platform"})
+	recs := []models.CostRecord{
+		{Tags: string(tagJSON), Cost: 1},
+	}
+	require.NoError(t, db.Create(&recs).Error)
+
+	mappings := []models.TeamMapping{
+		{Pattern: "plat", PatternType: "tag", Team: "plat"},
+	}
+	require.NoError(t, db.Create(&mappings).Error)
+
+	svc := services.NewAnalysisService(db)
+	results := svc.InferTeamOwnership()
+
+	costs := make(map[string]float64)
+	for _, r := range results {
+		costs[r.Team] = r.TotalCost
+	}
+
+	require.NotContains(t, costs, "plat")
+	require.InDelta(t, 1.0, costs["unassigned"], 0.001)
 }
 
 func BenchmarkInferTeamOwnership(b *testing.B) {
