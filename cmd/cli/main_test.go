@@ -17,6 +17,22 @@ import (
 	"tagscale/internal/models"
 )
 
+func TestCliDBPathPermissions(t *testing.T) {
+	tmp := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmp)
+	defer os.Setenv("HOME", oldHome)
+
+	path, err := cliDBPath()
+	require.NoError(t, err)
+	expected := filepath.Join(tmp, ".tagscale", "cli.db")
+	require.Equal(t, expected, path)
+
+	info, err := os.Stat(filepath.Dir(path))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+}
+
 func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
