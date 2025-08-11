@@ -90,6 +90,30 @@ func TestCLIGroupByValidation(t *testing.T) {
 	require.Contains(t, combined, "Usage:")
 }
 
+func TestCLILimitValidation(t *testing.T) {
+	cli := NewCLI()
+	summaryCmd, _, err := cli.Find([]string{"summary"})
+	require.NoError(t, err)
+	summaryCmd.Run = func(cmd *cobra.Command, args []string) {}
+
+	// valid limit
+	cli.SetArgs([]string{"summary", "--limit", "1"})
+	require.NoError(t, cli.Execute())
+
+	cases := []string{"0", "-5"}
+	for _, v := range cases {
+		cli.SetArgs([]string{"summary", "--limit", v})
+		var outBuf, errBuf bytes.Buffer
+		cli.SetOut(&outBuf)
+		cli.SetErr(&errBuf)
+		err = cli.Execute()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "limit must be greater than 0")
+		combined := outBuf.String() + errBuf.String()
+		require.Contains(t, combined, "Usage:")
+	}
+}
+
 func TestRunSummaryGroupByLimit(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
