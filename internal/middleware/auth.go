@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// AuthMiddleware validates the Authorization header against a static API key.
+// The Bearer scheme is matched in a case-insensitive manner.
 func AuthMiddleware(apiKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if apiKey == "" {
@@ -25,7 +27,8 @@ func AuthMiddleware(apiKey string) gin.HandlerFunc {
 		}
 
 		parts := strings.Fields(authHeader)
-		if len(parts) != 2 || parts[0] != "Bearer" {
+		// Match the Bearer scheme case-insensitively to be RFC compliant.
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
 			c.Abort()
 			return
