@@ -133,6 +133,22 @@ func TestCLILimitValidation(t *testing.T) {
 	}
 }
 
+func TestCLIVersion(t *testing.T) {
+	cli := NewCLI()
+	var out bytes.Buffer
+	cli.SetOut(&out)
+	cli.SetArgs([]string{"version"})
+	require.NoError(t, cli.Execute())
+	require.Equal(t, Version+"\n", out.String())
+
+	cli = NewCLI()
+	out.Reset()
+	cli.SetOut(&out)
+	cli.SetArgs([]string{"--version"})
+	require.NoError(t, cli.Execute())
+	require.Equal(t, Version+"\n", out.String())
+}
+
 func TestRunSummaryGroupByLimit(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")

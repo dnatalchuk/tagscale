@@ -20,6 +20,9 @@ import (
 	"tagscale/internal/services"
 )
 
+// Version is the CLI version. It can be set at build time using -ldflags.
+var Version = "dev"
+
 // awsClientFactory allows tests to inject a mock AWS client.
 var awsClientFactory = func(region, profile string) (services.CostExplorerAPI, error) {
 	return aws.NewClient(region, profile)
@@ -100,8 +103,9 @@ func NewCLI() *cobra.Command {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "tagscale",
-		Short: "TagScale CLI - Cloud cost insights in your terminal",
+		Use:     "tagscale",
+		Short:   "TagScale CLI - Cloud cost insights in your terminal",
+		Version: Version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if _, ok := allowedOutputFormats[output]; !ok {
 				_ = cmd.Help()
@@ -121,11 +125,22 @@ func NewCLI() *cobra.Command {
 		},
 	}
 
+	rootCmd.SetVersionTemplate("{{.Version}}\n")
+
 	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
 	rootCmd.PersistentFlags().BoolVar(&migrate, "migrate", false, "Run database migrations on startup")
 	rootCmd.PersistentFlags().StringVar(&region, "region", os.Getenv("AWS_REGION"), "AWS region (default from AWS_REGION)")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
 	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
+
+	// VERSION command
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print the CLI version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprintln(cmd.OutOrStdout(), Version)
+		},
+	}
 
 	// SCAN command
 	scanCmd := &cobra.Command{
@@ -151,6 +166,7 @@ func NewCLI() *cobra.Command {
 	summaryCmd.Flags().StringVar(&groupBy, "group-by", "service", "Group costs by: service, account, region, or team")
 	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
 
+	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(summaryCmd)
 
