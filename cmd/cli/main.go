@@ -139,12 +139,13 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		Run: func(cmd *cobra.Command, args []string) {
-			runSummary(useDB, migrate, output, groupBy, limit)
+			runSummary(dateRange, useDB, migrate, output, groupBy, limit)
 		},
 	}
 
 	summaryCmd.Flags().IntVar(&limit, "limit", 5, "Limit number of results")
 	summaryCmd.Flags().StringVar(&groupBy, "group-by", "service", "Group costs by: service, account, region, or team")
+	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
 
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(summaryCmd)
@@ -227,7 +228,12 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(useDB, migrate bool, output, groupBy string, limit int) {
+func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int) {
+	startDate, endDate, err := parseDateRange(rangeStr)
+	if err != nil {
+		log.Fatalf("❌ Invalid range: %v", err)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
@@ -241,7 +247,7 @@ func runSummary(useDB, migrate bool, output, groupBy string, limit int) {
 	analysisService := services.NewAnalysisService(db)
 
 	// Run analysis so we have fresh data
-	err = analysisService.RunAnalysis(limit)
+	err = analysisService.RunAnalysis(limit, startDate, endDate)
 	if err != nil {
 		log.Fatalf("❌ Analysis failed: %v", err)
 	}

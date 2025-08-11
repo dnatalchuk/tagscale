@@ -23,7 +23,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	runSummary(true, true, "table", "service", 5)
+	runSummary("30", true, true, "table", "service", 5)
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			old := os.Stdout
 			os.Stdout = w
 
-			runSummary(true, false, "table", tt.group, tt.limit)
+			runSummary("30", true, false, "table", tt.group, tt.limit)
 
 			w.Close()
 			os.Stdout = old
@@ -131,4 +131,38 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunSummaryHonorsRange(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.CostAnalysis{}, &models.TeamMapping{}))
+
+	now := time.Now().Truncate(24 * time.Hour)
+	recs := []models.CostRecord{
+		{Date: now.AddDate(0, 0, -1), Service: "InRange", Cost: 10, Tags: "{}"},
+		{Date: now.AddDate(0, 0, -10), Service: "OutRange", Cost: 20, Tags: "{}"},
+	}
+	require.NoError(t, db.Create(&recs).Error)
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	old := os.Stdout
+	os.Stdout = w
+
+	runSummary("7", true, false, "table", "service", 5)
+
+	w.Close()
+	os.Stdout = old
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	output := string(out)
+
+	require.Contains(t, output, "InRange")
+	require.NotContains(t, output, "OutRange")
 }
