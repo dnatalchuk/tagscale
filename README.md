@@ -127,7 +127,8 @@ The `--range` flag accepts either a number of days (e.g. `7` for the last seven
 days) or an explicit date or date range using the format
 `YYYY-MM-DD` or `YYYY-MM-DD:YYYY-MM-DD`.
 
-To focus on specific dimensions, the `summary` command supports grouping and limiting:
+To focus on specific dimensions, the `summary` command supports grouping and limiting.
+Accepted values for `--group-by` are `service` (default), `account`, `region`, and `team`:
 
 ```bash
 ./bin/tagscale-cli summary --group-by account --limit 3

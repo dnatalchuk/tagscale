@@ -52,6 +52,28 @@ func TestCLIOutputFormatValidation(t *testing.T) {
 	require.Contains(t, combined, "Usage:")
 }
 
+func TestCLIGroupByValidation(t *testing.T) {
+	cli := NewCLI()
+	summaryCmd, _, err := cli.Find([]string{"summary"})
+	require.NoError(t, err)
+	summaryCmd.Run = func(cmd *cobra.Command, args []string) {}
+
+	// valid group-by option
+	cli.SetArgs([]string{"summary", "--group-by", "account"})
+	require.NoError(t, cli.Execute())
+
+	// invalid group-by option
+	cli.SetArgs([]string{"summary", "--group-by", "department"})
+	var outBuf, errBuf bytes.Buffer
+	cli.SetOut(&outBuf)
+	cli.SetErr(&errBuf)
+	err = cli.Execute()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid group-by value")
+	combined := outBuf.String() + errBuf.String()
+	require.Contains(t, combined, "Usage:")
+}
+
 func TestRunSummaryGroupByLimit(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")

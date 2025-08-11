@@ -31,6 +31,14 @@ var allowedOutputFormats = map[string]struct{}{
 	"json":  {},
 }
 
+// allowedGroupByOptions lists the supported values for the --group-by flag.
+var allowedGroupByOptions = map[string]struct{}{
+	"service": {},
+	"account": {},
+	"region":  {},
+	"team":    {},
+}
+
 func cliDBPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -98,6 +106,12 @@ func NewCLI() *cobra.Command {
 			if _, ok := allowedOutputFormats[output]; !ok {
 				_ = cmd.Help()
 				return fmt.Errorf("invalid output format %q: supported formats are table and json", output)
+			}
+			if cmd.Name() == "summary" {
+				if _, ok := allowedGroupByOptions[groupBy]; !ok {
+					_ = cmd.Help()
+					return fmt.Errorf("invalid group-by value %q: supported options are service, account, region, and team", groupBy)
+				}
 			}
 			return nil
 		},
