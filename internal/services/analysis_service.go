@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strings"
 	"time"
 
 	"tagscale/internal/models"
@@ -162,6 +161,14 @@ func (s *AnalysisService) InferTeamOwnership() []models.CostSummary {
 }
 
 func (s *AnalysisService) inferTeamFromRecord(record models.CostRecord, mappings []compiledTeamMapping) string {
+	// Tags are stored as a JSON object string. Unmarshal once per record
+	// to avoid repeated parsing and to enable exact value comparisons
+	// against TeamMapping.Pattern when PatternType is "tag".
+	var tags map[string]string
+	if err := json.Unmarshal([]byte(record.Tags), &tags); err != nil {
+		tags = map[string]string{}
+	}
+
 	for _, mapping := range mappings {
 		switch mapping.PatternType {
 		case "service":
@@ -173,9 +180,10 @@ func (s *AnalysisService) inferTeamFromRecord(record models.CostRecord, mappings
 				return mapping.Team
 			}
 		case "tag":
-			// Check if tags contain the pattern
-			if strings.Contains(record.Tags, mapping.Pattern) {
-				return mapping.Team
+			for _, v := range tags {
+				if v == mapping.Pattern {
+					return mapping.Team
+				}
 			}
 		}
 	}
