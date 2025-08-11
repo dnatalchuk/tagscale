@@ -91,8 +91,10 @@ make build-cli
 The binary will be created at `bin/tagscale-cli`.
 
 By default the CLI stores all data in-memory. Use the `--db` flag to persist results
-to the database configured by `DATABASE_URL`. Use `--migrate` to run any pending
-database migrations. Migrations are skipped by default for faster startup.
+to the database configured by `DATABASE_URL`. When the built-in SQLite database is used,
+TagScale places it in `~/.tagscale/cli.db`. The `~/.tagscale` directory is created with
+`700` permissions so only your user can access its contents. Use `--migrate` to run any
+pending database migrations. Migrations are skipped by default for faster startup.
 
 To apply migrations explicitly, include `--migrate` with your command, for example:
 
