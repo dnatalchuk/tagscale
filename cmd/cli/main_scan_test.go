@@ -67,3 +67,15 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	require.NoError(t, db.Model(&models.CostRecord{}).Count(&count).Error)
 	require.Equal(t, int64(1), count)
 }
+
+func TestParseDateRangeNegativeDays(t *testing.T) {
+	_, _, err := parseDateRange("-5")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "non-negative")
+}
+
+func TestParseDateRangeInvertedRange(t *testing.T) {
+	_, _, err := parseDateRange("2023-01-02:2023-01-01")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "start date")
+}
