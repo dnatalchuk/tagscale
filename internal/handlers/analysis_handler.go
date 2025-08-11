@@ -4,6 +4,7 @@ package handlers
 import (
 	"net/http"
 	"tagscale/internal/services"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +29,9 @@ func (h *AnalysisHandler) GetLatestAnalysis(c *gin.Context) {
 
 func (h *AnalysisHandler) RunAnalysis(c *gin.Context) {
 	go func() {
-		h.analysisService.RunAnalysis(5)
+		end := time.Now()
+		start := end.AddDate(0, 0, -30)
+		h.analysisService.RunAnalysis(5, start, end)
 	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Analysis started"})

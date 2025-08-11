@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -16,17 +17,18 @@ import (
 func setupAnalysisDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.TeamMapping{}))
+	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.TeamMapping{}, &models.CostAnalysis{}))
 	return db
 }
 
 func TestInferTeamOwnershipRegex(t *testing.T) {
 	db := setupAnalysisDB(t)
 
+	now := time.Now()
 	recs := []models.CostRecord{
-		{Service: "AmazonEC2", ResourceID: "i-1", Cost: 1},
-		{Service: "AmazonS3", ResourceID: "bucket-1", Cost: 2},
-		{Service: "Other", ResourceID: "res", Cost: 3},
+		{Date: now, Service: "AmazonEC2", ResourceID: "i-1", Cost: 1},
+		{Date: now, Service: "AmazonS3", ResourceID: "bucket-1", Cost: 2},
+		{Date: now, Service: "Other", ResourceID: "res", Cost: 3},
 	}
 	require.NoError(t, db.Create(&recs).Error)
 
@@ -37,7 +39,7 @@ func TestInferTeamOwnershipRegex(t *testing.T) {
 	require.NoError(t, db.Create(&mappings).Error)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership()
+	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
 
 	// Convert results to map for easy lookup
 	costs := make(map[string]float64)
@@ -53,9 +55,10 @@ func TestInferTeamOwnershipRegex(t *testing.T) {
 func TestInferTeamOwnershipTagExact(t *testing.T) {
 	db := setupAnalysisDB(t)
 
+	now := time.Now()
 	tagJSON, _ := json.Marshal(map[string]string{"Team": "platform"})
 	recs := []models.CostRecord{
-		{Tags: string(tagJSON), Cost: 1},
+		{Date: now, Tags: string(tagJSON), Cost: 1},
 	}
 	require.NoError(t, db.Create(&recs).Error)
 
@@ -65,7 +68,7 @@ func TestInferTeamOwnershipTagExact(t *testing.T) {
 	require.NoError(t, db.Create(&mappings).Error)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership()
+	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
 
 	costs := make(map[string]float64)
 	for _, r := range results {
@@ -78,9 +81,10 @@ func TestInferTeamOwnershipTagExact(t *testing.T) {
 func TestInferTeamOwnershipTagPartial(t *testing.T) {
 	db := setupAnalysisDB(t)
 
+	now := time.Now()
 	tagJSON, _ := json.Marshal(map[string]string{"Team": "platform"})
 	recs := []models.CostRecord{
-		{Tags: string(tagJSON), Cost: 1},
+		{Date: now, Tags: string(tagJSON), Cost: 1},
 	}
 	require.NoError(t, db.Create(&recs).Error)
 
@@ -90,7 +94,7 @@ func TestInferTeamOwnershipTagPartial(t *testing.T) {
 	require.NoError(t, db.Create(&mappings).Error)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership()
+	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
 
 	costs := make(map[string]float64)
 	for _, r := range results {
@@ -111,9 +115,11 @@ func BenchmarkInferTeamOwnership(b *testing.B) {
 	}
 
 	// Create a large number of cost records
+	now := time.Now()
 	var recs []models.CostRecord
 	for i := 0; i < 10000; i++ {
 		recs = append(recs, models.CostRecord{
+			Date:       now,
 			Service:    fmt.Sprintf("svc-%d", i%10),
 			ResourceID: fmt.Sprintf("res-%d", i),
 			Cost:       1,
@@ -134,6 +140,24 @@ func BenchmarkInferTeamOwnership(b *testing.B) {
 	svc := services.NewAnalysisService(db)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		svc.InferTeamOwnership()
+		svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
 	}
+}
+
+func TestRunAnalysisHonorsRange(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	now := time.Now().Truncate(24 * time.Hour)
+	recs := []models.CostRecord{
+		{Date: now.AddDate(0, 0, -1), Service: "In", Cost: 5, Tags: "{}"},
+		{Date: now.AddDate(0, 0, -10), Service: "Out", Cost: 20, Tags: "{}"},
+	}
+	require.NoError(t, db.Create(&recs).Error)
+
+	svc := services.NewAnalysisService(db)
+	require.NoError(t, svc.RunAnalysis(5, now.AddDate(0, 0, -7), now))
+
+	var analysis models.CostAnalysis
+	require.NoError(t, db.Last(&analysis).Error)
+	require.InDelta(t, 5.0, analysis.TotalCost, 0.001)
 }

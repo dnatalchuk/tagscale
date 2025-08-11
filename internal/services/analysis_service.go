@@ -40,20 +40,18 @@ func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
 
-func (s *AnalysisService) RunAnalysis(limit int) error {
-	today := time.Now().Truncate(24 * time.Hour)
-
+func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) error {
 	// Get total cost
 	var totalCost float64
 	s.db.Model(&models.CostRecord{}).
-		Where("date >= ? AND date < ?", today.AddDate(0, 0, -1), today).
+		Where("date >= ? AND date <= ?", startDate, endDate).
 		Select("SUM(cost)").
 		Scan(&totalCost)
 
 	// Get untagged cost (assuming empty or "{}" tags means untagged)
 	var untaggedCost float64
 	s.db.Model(&models.CostRecord{}).
-		Where("date >= ? AND date < ? AND (tags = '' OR tags = '{}')", today.AddDate(0, 0, -1), today).
+		Where("date >= ? AND date <= ? AND (tags = '' OR tags = '{}')", startDate, endDate).
 		Select("SUM(cost)").
 		Scan(&untaggedCost)
 
@@ -63,19 +61,19 @@ func (s *AnalysisService) RunAnalysis(limit int) error {
 	}
 
 	// Get top services
-	topServices, _ := s.GetTopCosts(limit, "service")
+	topServices, _ := s.GetTopCosts(limit, "service", startDate, endDate)
 	topServicesJSON, _ := json.Marshal(topServices)
 
 	// Get top accounts
-	topAccounts, _ := s.GetTopCosts(limit, "account")
+	topAccounts, _ := s.GetTopCosts(limit, "account", startDate, endDate)
 	topAccountsJSON, _ := json.Marshal(topAccounts)
 
 	// Get top regions
-	topRegions, _ := s.GetTopCosts(limit, "region")
+	topRegions, _ := s.GetTopCosts(limit, "region", startDate, endDate)
 	topRegionsJSON, _ := json.Marshal(topRegions)
 
 	// Infer team ownership
-	costByTeam := s.InferTeamOwnership()
+	costByTeam := s.InferTeamOwnership(startDate, endDate)
 	sort.Slice(costByTeam, func(i, j int) bool { return costByTeam[i].TotalCost > costByTeam[j].TotalCost })
 	if len(costByTeam) > limit {
 		costByTeam = costByTeam[:limit]
@@ -88,7 +86,7 @@ func (s *AnalysisService) RunAnalysis(limit int) error {
 
 	// Save analysis
 	analysis := models.CostAnalysis{
-		Date:            today,
+		Date:            endDate,
 		TotalCost:       totalCost,
 		UntaggedCost:    untaggedCost,
 		UntaggedPercent: untaggedPercent,
@@ -106,11 +104,12 @@ func (s *AnalysisService) RunAnalysis(limit int) error {
 	return nil
 }
 
-func (s *AnalysisService) GetTopCosts(limit int, groupBy string) ([]models.CostSummary, error) {
+func (s *AnalysisService) GetTopCosts(limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {
 	var results []models.CostSummary
 
 	query := s.db.Model(&models.CostRecord{}).
 		Select(fmt.Sprintf("%s, SUM(cost) as total_cost", groupBy)).
+		Where("date >= ? AND date <= ?", startDate, endDate).
 		Group(groupBy).
 		Order("total_cost DESC").
 		Limit(limit)
@@ -122,9 +121,9 @@ func (s *AnalysisService) GetTopCosts(limit int, groupBy string) ([]models.CostS
 	return results, nil
 }
 
-func (s *AnalysisService) InferTeamOwnership() []models.CostSummary {
+func (s *AnalysisService) InferTeamOwnership(startDate, endDate time.Time) []models.CostSummary {
 	var costRecords []models.CostRecord
-	s.db.Find(&costRecords)
+	s.db.Where("date >= ? AND date <= ?", startDate, endDate).Find(&costRecords)
 
 	teamCosts := make(map[string]float64)
 

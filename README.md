@@ -108,11 +108,11 @@ retain the collected data.
 ### Example: In-memory scan and summary
 
 Run a quick scan for the last 7 days without saving results to a database and then
-print a summary:
+print a summary for the same period:
 
 ```bash
 ./bin/tagscale-cli scan --range 7
-./bin/tagscale-cli summary
+./bin/tagscale-cli summary --range 7
 ```
 
 You can override the AWS region and shared config profile or emit JSON instead of
@@ -120,12 +120,12 @@ the default table output (supported values: `table`, `json`):
 
 ```bash
 ./bin/tagscale-cli scan --range 7 --region us-west-2 --profile my-profile
-./bin/tagscale-cli summary --output json
+./bin/tagscale-cli summary --range 2024-01-01:2024-01-07 --output json
 ```
 
-The `--range` flag accepts either a number of days (e.g. `7` for the last seven
-days) or an explicit date or date range using the format
-`YYYY-MM-DD` or `YYYY-MM-DD:YYYY-MM-DD`.
+The `--range` flag accepted by both `scan` and `summary` commands supports either a
+number of days (e.g. `7` for the last seven days) or an explicit date or date
+range using the format `YYYY-MM-DD` or `YYYY-MM-DD:YYYY-MM-DD`.
 
 To focus on specific dimensions, the `summary` command supports grouping and limiting.
 Accepted values for `--group-by` are `service` (default), `account`, `region`, and `team`:
