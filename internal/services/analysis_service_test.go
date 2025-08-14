@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +17,8 @@ import (
 )
 
 func setupAnalysisDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.TeamMapping{}, &models.CostAnalysis{}))
 	return db
@@ -188,4 +190,80 @@ func TestRunAnalysisReturnsErrorWhenMarshalFails(t *testing.T) {
 	err := svc.RunAnalysis(5, now.Add(-time.Hour), now)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "marshal top services")
+}
+
+type fakeAnalysisService struct {
+	*services.AnalysisService
+	delay time.Duration
+}
+
+func (f *fakeAnalysisService) GetTopCosts(limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {
+	time.Sleep(f.delay)
+	return []models.CostSummary{}, nil
+}
+
+func (f *fakeAnalysisService) RunAnalysisSequential(limit int, startDate, endDate time.Time) error {
+	if _, err := f.GetTopCosts(limit, "service", startDate, endDate); err != nil {
+		return err
+	}
+	if _, err := f.GetTopCosts(limit, "account", startDate, endDate); err != nil {
+		return err
+	}
+	if _, err := f.GetTopCosts(limit, "region", startDate, endDate); err != nil {
+		return err
+	}
+	return nil
+}
+
+func TestRunAnalysisFetchesTopCostsConcurrently(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	now := time.Now()
+	rec := models.CostRecord{Date: now, Service: "svc", Account: "acc", Region: "reg", Cost: 1, Tags: "{}"}
+	require.NoError(t, db.Create(&rec).Error)
+
+	baseSvc := services.NewAnalysisService(db)
+	fake := &fakeAnalysisService{AnalysisService: baseSvc, delay: 100 * time.Millisecond}
+
+	start := time.Now()
+	require.NoError(t, fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour)))
+	elapsed := time.Since(start)
+
+	require.Less(t, elapsed, 250*time.Millisecond)
+}
+
+func BenchmarkRunAnalysisConcurrent(b *testing.B) {
+	dsn := fmt.Sprintf("file:bench?mode=memory&cache=shared")
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		b.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.CostRecord{}, &models.TeamMapping{}, &models.CostAnalysis{}); err != nil {
+		b.Fatalf("migrate: %v", err)
+	}
+
+	now := time.Now()
+	rec := models.CostRecord{Date: now, Service: "svc", Account: "acc", Region: "reg", Cost: 1, Tags: "{}"}
+	if err := db.Create(&rec).Error; err != nil {
+		b.Fatalf("create record: %v", err)
+	}
+
+	baseSvc := services.NewAnalysisService(db)
+	fake := &fakeAnalysisService{AnalysisService: baseSvc, delay: 10 * time.Millisecond}
+
+	b.Run("sequential", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := fake.RunAnalysisSequential(5, now.Add(-time.Hour), now.Add(time.Hour)); err != nil {
+				b.Fatalf("sequential run: %v", err)
+			}
+		}
+	})
+
+	b.Run("concurrent", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour)); err != nil {
+				b.Fatalf("concurrent run: %v", err)
+			}
+		}
+	})
 }
