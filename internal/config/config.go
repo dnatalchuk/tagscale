@@ -25,6 +25,7 @@ type Config struct {
 	LogLevel               string
 	APIKey                 string
 	AllowedOrigins         []string
+	AllowNoAuth            bool
 }
 
 func Load() (*Config, error) {
@@ -47,6 +48,7 @@ func Load() (*Config, error) {
 		LogLevel:               getEnv("LOG_LEVEL", "info"),
 		APIKey:                 getEnv("API_KEY", ""),
 		AllowedOrigins:         getEnvAsSlice("CORS_ORIGINS", ",", []string{"http://localhost:3000"}),
+		AllowNoAuth:            getEnvAsBool("ALLOW_NO_AUTH", false),
 	}
 
 	return config, nil
@@ -79,6 +81,15 @@ func getEnvAsSlice(key string, sep string, defaultValue []string) []string {
 		}
 		if len(result) > 0 {
 			return result
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
 		}
 	}
 	return defaultValue

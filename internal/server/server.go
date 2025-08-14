@@ -39,7 +39,7 @@ func (s *Server) Router() http.Handler {
 	dashboardHandler := handlers.NewDashboardHandler(s.costService, s.analysisService)
 
 	// API routes
-	api := r.Group("/api/v1", middleware.AuthMiddleware(s.config.APIKey))
+	api := r.Group("/api/v1", middleware.AuthMiddleware(s.config.APIKey, s.config.AllowNoAuth))
 	{
 		api.GET("/costs/summary", costHandler.GetCostSummary)
 		api.GET("/costs/top", costHandler.GetTopCosts)
