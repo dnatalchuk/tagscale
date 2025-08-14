@@ -3,6 +3,7 @@ package services_test
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -160,4 +161,31 @@ func TestRunAnalysisHonorsRange(t *testing.T) {
 	var analysis models.CostAnalysis
 	require.NoError(t, db.Last(&analysis).Error)
 	require.InDelta(t, 5.0, analysis.TotalCost, 0.001)
+}
+
+func TestRunAnalysisReturnsErrorWhenGetTopCostsFails(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(`CREATE TABLE cost_records (id INTEGER PRIMARY KEY, date DATETIME, cost REAL, tags TEXT)`).Error)
+
+	now := time.Now()
+	require.NoError(t, db.Exec(`INSERT INTO cost_records (date, cost, tags) VALUES (?, ?, '{}')`, now, 1).Error)
+
+	svc := services.NewAnalysisService(db)
+	err = svc.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to get top services")
+}
+
+func TestRunAnalysisReturnsErrorWhenMarshalFails(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	now := time.Now()
+	rec := models.CostRecord{Date: now, Service: "svc", Account: "acc", Region: "us", Cost: math.Inf(1), Tags: "{}"}
+	require.NoError(t, db.Create(&rec).Error)
+
+	svc := services.NewAnalysisService(db)
+	err := svc.RunAnalysis(5, now.Add(-time.Hour), now)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "marshal top services")
 }
