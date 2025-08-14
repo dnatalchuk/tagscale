@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -24,8 +25,8 @@ import (
 var Version = "dev"
 
 // awsClientFactory allows tests to inject a mock AWS client.
-var awsClientFactory = func(region, profile string) (services.CostExplorerAPI, error) {
-	return aws.NewClient(region, profile)
+var awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+	return aws.NewClient(ctx, region, profile)
 }
 
 // allowedOutputFormats lists the supported values for the --output flag.
@@ -204,8 +205,10 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 		region = cfg.AWSRegion
 	}
 
-	// Initialize AWS client
-	awsClient, err := awsClientFactory(region, profile)
+	// Initialize AWS client with a timeout to avoid hanging during startup
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.AWSRequestTimeout)*time.Second)
+	defer cancel()
+	awsClient, err := awsClientFactory(ctx, region, profile)
 	if err != nil {
 		log.Fatalf("❌ Failed to init AWS client: %v", err)
 	}

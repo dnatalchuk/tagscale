@@ -16,15 +16,21 @@ type Client struct {
 }
 
 // NewClient creates an AWS Cost Explorer client with the provided region and
-// optional shared configuration profile. If profile is empty the default chain
+// optional shared configuration profile. The ctx parameter allows callers to
+// control initialization, for example by applying a timeout. If ctx is nil the
+// background context is used. If profile is empty the default credential chain
 // is used.
-func NewClient(region, profile string) (*Client, error) {
+func NewClient(ctx context.Context, region, profile string) (*Client, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	opts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
 	if profile != "" {
 		opts = append(opts, awsconfig.WithSharedConfigProfile(profile))
 	}
 
-	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(), opts...)
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
