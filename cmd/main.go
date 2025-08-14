@@ -35,8 +35,10 @@ func main() {
 		log.Fatal("Failed to run migrations:", err)
 	}
 
-	// Initialize AWS client
-	awsClient, err := aws.NewClient(cfg.AWSRegion, os.Getenv("AWS_PROFILE"))
+	// Initialize AWS client with a timeout so startup can't hang indefinitely
+	initCtx, initCancel := context.WithTimeout(context.Background(), time.Duration(cfg.AWSRequestTimeout)*time.Second)
+	defer initCancel()
+	awsClient, err := aws.NewClient(initCtx, cfg.AWSRegion, os.Getenv("AWS_PROFILE"))
 	if err != nil {
 		log.Fatal("Failed to initialize AWS client:", err)
 	}

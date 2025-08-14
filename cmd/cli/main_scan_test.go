@@ -51,7 +51,9 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	mockClient := &mockAWSClient{output: output}
 
 	origFactory := awsClientFactory
-	awsClientFactory = func(region, profile string) (services.CostExplorerAPI, error) { return mockClient, nil }
+	awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+		return mockClient, nil
+	}
 	defer func() { awsClientFactory = origFactory }()
 
 	runScan("1", true, true, "", "", "table")
