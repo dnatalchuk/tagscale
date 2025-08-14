@@ -10,7 +10,7 @@ import (
 )
 
 func TestCustomCORSOrigins(t *testing.T) {
-	cfg := &config.Config{AllowedOrigins: []string{"https://example.com"}}
+	cfg := &config.Config{AllowedOrigins: []string{"https://example.com"}, AllowNoAuth: true}
 	srv := server.New(cfg, nil, nil, nil)
 	handler := srv.Router()
 
