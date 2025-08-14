@@ -10,6 +10,7 @@ import (
 
 	"tagscale/internal/models"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -60,30 +61,67 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) e
 		untaggedPercent = (untaggedCost / totalCost) * 100
 	}
 
-	// Get top services
-	topServices, err := s.GetTopCosts(limit, "service", startDate, endDate)
-	if err != nil {
-		return fmt.Errorf("failed to get top services: %w", err)
+	var (
+		topServices []models.CostSummary
+		topAccounts []models.CostSummary
+		topRegions  []models.CostSummary
+		errSvc      error
+		errAcct     error
+		errReg      error
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		var err error
+		topServices, err = s.GetTopCosts(limit, "service", startDate, endDate)
+		if err != nil {
+			errSvc = fmt.Errorf("failed to get top services: %w", err)
+			return errSvc
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		var err error
+		topAccounts, err = s.GetTopCosts(limit, "account", startDate, endDate)
+		if err != nil {
+			errAcct = fmt.Errorf("failed to get top accounts: %w", err)
+			return errAcct
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		var err error
+		topRegions, err = s.GetTopCosts(limit, "region", startDate, endDate)
+		if err != nil {
+			errReg = fmt.Errorf("failed to get top regions: %w", err)
+			return errReg
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		switch {
+		case errSvc != nil:
+			return errSvc
+		case errAcct != nil:
+			return errAcct
+		case errReg != nil:
+			return errReg
+		default:
+			return err
+		}
 	}
+
 	topServicesJSON, err := json.Marshal(topServices)
 	if err != nil {
 		return fmt.Errorf("failed to marshal top services: %w", err)
 	}
-
-	// Get top accounts
-	topAccounts, err := s.GetTopCosts(limit, "account", startDate, endDate)
-	if err != nil {
-		return fmt.Errorf("failed to get top accounts: %w", err)
-	}
 	topAccountsJSON, err := json.Marshal(topAccounts)
 	if err != nil {
 		return fmt.Errorf("failed to marshal top accounts: %w", err)
-	}
-
-	// Get top regions
-	topRegions, err := s.GetTopCosts(limit, "region", startDate, endDate)
-	if err != nil {
-		return fmt.Errorf("failed to get top regions: %w", err)
 	}
 	topRegionsJSON, err := json.Marshal(topRegions)
 	if err != nil {
