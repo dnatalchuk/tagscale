@@ -52,7 +52,8 @@ func main() {
 	srv := server.New(cfg, costService, analysisService, notificationService)
 
 	// Start background workers
-	go startBackgroundWorkers(costService, analysisService, notificationService, cfg)
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	go startBackgroundWorkers(workerCtx, costService, analysisService, notificationService, cfg)
 
 	// Start server
 	httpServer := &http.Server{
@@ -73,6 +74,7 @@ func main() {
 	<-quit
 
 	log.Println("Server shutting down...")
+	workerCancel()
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -85,7 +87,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func startBackgroundWorkers(costService *services.CostService, analysisService *services.AnalysisService, notificationService *services.NotificationService, cfg *config.Config) {
+func startBackgroundWorkers(ctx context.Context, costService *services.CostService, analysisService *services.AnalysisService, notificationService *services.NotificationService, cfg *config.Config) {
 	// Data collection worker
 	go func() {
 		ticker := time.NewTicker(time.Duration(cfg.DataCollectionInterval) * time.Minute)
@@ -100,6 +102,9 @@ func startBackgroundWorkers(costService *services.CostService, analysisService *
 				if err := costService.CollectCostData(start, end, time.Duration(cfg.AWSRequestTimeout)*time.Second); err != nil {
 					log.Printf("Cost data collection failed: %v", err)
 				}
+			case <-ctx.Done():
+				log.Println("Cost data collection worker stopping")
+				return
 			}
 		}
 	}()
@@ -118,6 +123,9 @@ func startBackgroundWorkers(costService *services.CostService, analysisService *
 				if err := analysisService.RunAnalysis(5, start, end); err != nil {
 					log.Printf("Cost analysis failed: %v", err)
 				}
+			case <-ctx.Done():
+				log.Println("Cost analysis worker stopping")
+				return
 			}
 		}
 	}()
@@ -134,6 +142,9 @@ func startBackgroundWorkers(costService *services.CostService, analysisService *
 				if err := notificationService.SendDailyDigest(); err != nil {
 					log.Printf("Notification sending failed: %v", err)
 				}
+			case <-ctx.Done():
+				log.Println("Notification worker stopping")
+				return
 			}
 		}
 	}()
