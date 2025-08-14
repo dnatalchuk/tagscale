@@ -39,7 +39,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	runSummary("30", true, true, "table", "service", 5)
+	require.NoError(t, runSummary("30", true, true, "table", "service", 5))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestRunSummaryClosesDB(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	runSummary("30", true, true, "table", "service", 5)
+	require.NoError(t, runSummary("30", true, true, "table", "service", 5))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestCLIGroupByValidation(t *testing.T) {
 	cli := NewCLI()
 	summaryCmd, _, err := cli.Find([]string{"summary"})
 	require.NoError(t, err)
-	summaryCmd.Run = func(cmd *cobra.Command, args []string) {}
+	summaryCmd.RunE = func(cmd *cobra.Command, args []string) error { return nil }
 
 	// valid group-by option
 	cli.SetArgs([]string{"summary", "--group-by", "account"})
@@ -113,7 +113,7 @@ func TestCLILimitValidation(t *testing.T) {
 	cli := NewCLI()
 	summaryCmd, _, err := cli.Find([]string{"summary"})
 	require.NoError(t, err)
-	summaryCmd.Run = func(cmd *cobra.Command, args []string) {}
+	summaryCmd.RunE = func(cmd *cobra.Command, args []string) error { return nil }
 
 	// valid limit
 	cli.SetArgs([]string{"summary", "--limit", "1"})
@@ -190,7 +190,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			old := os.Stdout
 			os.Stdout = w
 
-			runSummary("30", true, false, "table", tt.group, tt.limit)
+			require.NoError(t, runSummary("30", true, false, "table", tt.group, tt.limit))
 
 			w.Close()
 			os.Stdout = old
@@ -230,7 +230,7 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 
-	runSummary("7", true, false, "table", "service", 5)
+	require.NoError(t, runSummary("7", true, false, "table", "service", 5))
 
 	w.Close()
 	os.Stdout = old

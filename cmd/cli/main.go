@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -87,7 +86,8 @@ func initDB(useDB, migrate bool, cfg *config.Config) (*gorm.DB, error) {
 
 func main() {
 	if err := NewCLI().Execute(); err != nil {
-		log.Fatalf("command failed: %v", err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 
@@ -147,8 +147,8 @@ func NewCLI() *cobra.Command {
 	scanCmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
-		Run: func(cmd *cobra.Command, args []string) {
-			runScan(dateRange, useDB, migrate, region, profile, output)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runScan(dateRange, useDB, migrate, region, profile, output)
 		},
 	}
 
@@ -158,8 +158,8 @@ func NewCLI() *cobra.Command {
 	summaryCmd := &cobra.Command{
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
-		Run: func(cmd *cobra.Command, args []string) {
-			runSummary(dateRange, useDB, migrate, output, groupBy, limit)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runSummary(dateRange, useDB, migrate, output, groupBy, limit)
 		},
 	}
 
@@ -174,30 +174,30 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(rangeStr string, useDB, migrate bool, region, profile, output string) {
+func runScan(rangeStr string, useDB, migrate bool, region, profile, output string) error {
 	if output == "table" {
 		fmt.Println("🔍 Running TagScale scan...")
 	}
 
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
-		log.Fatalf("❌ Invalid range: %v", err)
+		return fmt.Errorf("❌ Invalid range: %w", err)
 	}
 
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("❌ Failed to load config: %v", err)
+		return fmt.Errorf("❌ Failed to load config: %w", err)
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize DB: %v", err)
+		return fmt.Errorf("❌ Failed to initialize DB: %w", err)
 	}
 
 	dbConn, err := db.DB()
 	if err != nil {
-		log.Fatalf("❌ Failed to get DB connection: %v", err)
+		return fmt.Errorf("❌ Failed to get DB connection: %w", err)
 	}
 	defer dbConn.Close()
 
@@ -210,7 +210,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	defer cancel()
 	awsClient, err := awsClientFactory(ctx, region, profile)
 	if err != nil {
-		log.Fatalf("❌ Failed to init AWS client: %v", err)
+		return fmt.Errorf("❌ Failed to init AWS client: %w", err)
 	}
 
 	// Run cost collection
@@ -218,7 +218,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 
 	err = costService.CollectCostData(startDate, endDate, time.Duration(cfg.AWSRequestTimeout)*time.Second)
 	if err != nil {
-		log.Fatalf("❌ Cost data collection failed: %v", err)
+		return fmt.Errorf("❌ Cost data collection failed: %w", err)
 	}
 
 	if output == "json" {
@@ -226,6 +226,8 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	} else {
 		fmt.Println("✅ Cost data collected.")
 	}
+
+	return nil
 }
 
 func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
@@ -268,25 +270,25 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int) {
+func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
-		log.Fatalf("❌ Invalid range: %v", err)
+		return fmt.Errorf("❌ Invalid range: %w", err)
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("❌ Failed to load config: %v", err)
+		return fmt.Errorf("❌ Failed to load config: %w", err)
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize DB: %v", err)
+		return fmt.Errorf("❌ Failed to initialize DB: %w", err)
 	}
 
 	dbConn, err := db.DB()
 	if err != nil {
-		log.Fatalf("❌ Failed to get DB connection: %v", err)
+		return fmt.Errorf("❌ Failed to get DB connection: %w", err)
 	}
 	defer dbConn.Close()
 
@@ -295,13 +297,13 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 	// Run analysis so we have fresh data
 	err = analysisService.RunAnalysis(limit, startDate, endDate)
 	if err != nil {
-		log.Fatalf("❌ Analysis failed: %v", err)
+		return fmt.Errorf("❌ Analysis failed: %w", err)
 	}
 
 	// Fetch latest analysis
 	latestAnalysis, err := analysisService.GetLatestAnalysis()
 	if err != nil {
-		log.Fatalf("❌ Failed to fetch latest analysis: %v", err)
+		return fmt.Errorf("❌ Failed to fetch latest analysis: %w", err)
 	}
 
 	if output == "json" {
@@ -309,6 +311,8 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 	} else {
 		printAnalysis(latestAnalysis, groupBy)
 	}
+
+	return nil
 }
 
 func printAnalysis(result services.AnalysisResult, groupBy string) {
