@@ -61,16 +61,34 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) e
 	}
 
 	// Get top services
-	topServices, _ := s.GetTopCosts(limit, "service", startDate, endDate)
-	topServicesJSON, _ := json.Marshal(topServices)
+	topServices, err := s.GetTopCosts(limit, "service", startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to get top services: %w", err)
+	}
+	topServicesJSON, err := json.Marshal(topServices)
+	if err != nil {
+		return fmt.Errorf("failed to marshal top services: %w", err)
+	}
 
 	// Get top accounts
-	topAccounts, _ := s.GetTopCosts(limit, "account", startDate, endDate)
-	topAccountsJSON, _ := json.Marshal(topAccounts)
+	topAccounts, err := s.GetTopCosts(limit, "account", startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to get top accounts: %w", err)
+	}
+	topAccountsJSON, err := json.Marshal(topAccounts)
+	if err != nil {
+		return fmt.Errorf("failed to marshal top accounts: %w", err)
+	}
 
 	// Get top regions
-	topRegions, _ := s.GetTopCosts(limit, "region", startDate, endDate)
-	topRegionsJSON, _ := json.Marshal(topRegions)
+	topRegions, err := s.GetTopCosts(limit, "region", startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to get top regions: %w", err)
+	}
+	topRegionsJSON, err := json.Marshal(topRegions)
+	if err != nil {
+		return fmt.Errorf("failed to marshal top regions: %w", err)
+	}
 
 	// Infer team ownership
 	costByTeam := s.InferTeamOwnership(startDate, endDate)
@@ -78,11 +96,17 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) e
 	if len(costByTeam) > limit {
 		costByTeam = costByTeam[:limit]
 	}
-	costByTeamJSON, _ := json.Marshal(costByTeam)
+	costByTeamJSON, err := json.Marshal(costByTeam)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cost by team: %w", err)
+	}
 
 	// Generate insights
 	insights := s.GenerateInsights(totalCost, untaggedPercent, topServices)
-	insightsJSON, _ := json.Marshal(insights)
+	insightsJSON, err := json.Marshal(insights)
+	if err != nil {
+		return fmt.Errorf("failed to marshal insights: %w", err)
+	}
 
 	// Save analysis
 	analysis := models.CostAnalysis{
