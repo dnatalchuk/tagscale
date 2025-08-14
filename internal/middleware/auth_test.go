@@ -41,6 +41,9 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			require.Equal(t, tc.expected, w.Code)
+			if tc.expected == http.StatusUnauthorized {
+				require.Equal(t, "Bearer", w.Header().Get("WWW-Authenticate"))
+			}
 		})
 	}
 }
