@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -19,11 +20,15 @@ import (
 )
 
 type mockAWSClient struct {
-	output *costexplorer.GetCostAndUsageOutput
-	err    error
+	output     *costexplorer.GetCostAndUsageOutput
+	err        error
+	ctxTimeout time.Duration
 }
 
 func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	if dl, ok := ctx.Deadline(); ok {
+		m.ctxTimeout = time.Until(dl)
+	}
 	return m.output, m.err
 }
 
@@ -56,7 +61,7 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	}
 	defer func() { awsClientFactory = origFactory }()
 
-	require.NoError(t, runScan("1", true, true, "", "", "table"))
+	require.NoError(t, runScan("1", true, true, "", "", "table", 30))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -80,4 +85,31 @@ func TestParseDateRangeInvertedRange(t *testing.T) {
 	_, _, err := parseDateRange("2023-01-02:2023-01-01")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "start date")
+}
+
+func TestScanTimeoutFlag(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	const timeoutSec = 7
+	mockClient := &mockAWSClient{output: &costexplorer.GetCostAndUsageOutput{}}
+	var initTimeout time.Duration
+
+	origFactory := awsClientFactory
+	awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+		if dl, ok := ctx.Deadline(); ok {
+			initTimeout = time.Until(dl)
+		}
+		return mockClient, nil
+	}
+	defer func() { awsClientFactory = origFactory }()
+
+	cli := NewCLI()
+	cli.SetArgs([]string{"scan", "--db", "--migrate", "--timeout", strconv.Itoa(timeoutSec)})
+	require.NoError(t, cli.Execute())
+
+	require.InDelta(t, float64(timeoutSec), initTimeout.Seconds(), 1)
+	require.InDelta(t, float64(timeoutSec), mockClient.ctxTimeout.Seconds(), 1)
 }
