@@ -84,9 +84,35 @@ func initDB(useDB, migrate bool, cfg *config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
+// errorf formats an error message and prefixes it with a warning emoji when
+// using table output. In JSON mode, the message is returned without the emoji
+// so it can be encoded cleanly.
+func errorf(output, format string, args ...interface{}) error {
+	if output != "json" {
+		format = "❌ " + format
+	}
+	return fmt.Errorf(format, args...)
+}
+
+// printError writes an error to the appropriate output stream depending on the
+// selected format. When JSON output is requested, the error is printed as a
+// JSON object; otherwise it is written to stderr as plain text.
+func printError(cmd *cobra.Command, err error) {
+	output := "table"
+	if flag := cmd.Flag("output"); flag != nil {
+		output = flag.Value.String()
+	}
+	if output == "json" {
+		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"error": err.Error()})
+	} else {
+		fmt.Fprintln(cmd.ErrOrStderr(), err)
+	}
+}
+
 func main() {
-	if err := NewCLI().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	cli := NewCLI()
+	if err := cli.Execute(); err != nil {
+		printError(cli, err)
 		os.Exit(1)
 	}
 }
@@ -104,9 +130,11 @@ func NewCLI() *cobra.Command {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:     "tagscale",
-		Short:   "TagScale CLI - Cloud cost insights in your terminal",
-		Version: Version,
+		Use:           "tagscale",
+		Short:         "TagScale CLI - Cloud cost insights in your terminal",
+		Version:       Version,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if _, ok := allowedOutputFormats[output]; !ok {
 				_ = cmd.Help()
@@ -181,23 +209,23 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
-		return fmt.Errorf("❌ Invalid range: %w", err)
+		return errorf(output, "Invalid range: %w", err)
 	}
 
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("❌ Failed to load config: %w", err)
+		return errorf(output, "Failed to load config: %w", err)
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
 	if err != nil {
-		return fmt.Errorf("❌ Failed to initialize DB: %w", err)
+		return errorf(output, "Failed to initialize DB: %w", err)
 	}
 
 	dbConn, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("❌ Failed to get DB connection: %w", err)
+		return errorf(output, "Failed to get DB connection: %w", err)
 	}
 	defer dbConn.Close()
 
@@ -210,7 +238,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	defer cancel()
 	awsClient, err := awsClientFactory(ctx, region, profile)
 	if err != nil {
-		return fmt.Errorf("❌ Failed to init AWS client: %w", err)
+		return errorf(output, "Failed to init AWS client: %w", err)
 	}
 
 	// Run cost collection
@@ -218,7 +246,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 
 	err = costService.CollectCostData(startDate, endDate, time.Duration(cfg.AWSRequestTimeout)*time.Second)
 	if err != nil {
-		return fmt.Errorf("❌ Cost data collection failed: %w", err)
+		return errorf(output, "Cost data collection failed: %w", err)
 	}
 
 	if output == "json" {
@@ -273,22 +301,22 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
-		return fmt.Errorf("❌ Invalid range: %w", err)
+		return errorf(output, "Invalid range: %w", err)
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		return fmt.Errorf("❌ Failed to load config: %w", err)
+		return errorf(output, "Failed to load config: %w", err)
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
 	if err != nil {
-		return fmt.Errorf("❌ Failed to initialize DB: %w", err)
+		return errorf(output, "Failed to initialize DB: %w", err)
 	}
 
 	dbConn, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("❌ Failed to get DB connection: %w", err)
+		return errorf(output, "Failed to get DB connection: %w", err)
 	}
 	defer dbConn.Close()
 
@@ -297,13 +325,13 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 	// Run analysis so we have fresh data
 	err = analysisService.RunAnalysis(limit, startDate, endDate)
 	if err != nil {
-		return fmt.Errorf("❌ Analysis failed: %w", err)
+		return errorf(output, "Analysis failed: %w", err)
 	}
 
 	// Fetch latest analysis
 	latestAnalysis, err := analysisService.GetLatestAnalysis()
 	if err != nil {
-		return fmt.Errorf("❌ Failed to fetch latest analysis: %w", err)
+		return errorf(output, "Failed to fetch latest analysis: %w", err)
 	}
 
 	if output == "json" {
