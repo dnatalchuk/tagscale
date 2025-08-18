@@ -56,9 +56,13 @@ func main() {
 	go startBackgroundWorkers(workerCtx, costService, analysisService, notificationService, cfg)
 
 	// Start server
+	handler, err := srv.Router()
+	if err != nil {
+		log.Fatal("Failed to initialize router:", err)
+	}
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: srv.Router(),
+		Handler: handler,
 	}
 
 	go func() {

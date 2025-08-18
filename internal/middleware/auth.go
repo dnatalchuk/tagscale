@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -13,13 +14,13 @@ import (
 // AuthMiddleware validates the Authorization header against a static API key.
 // The Bearer scheme is matched in a case-insensitive manner.
 // Unauthorized responses include a `WWW-Authenticate: Bearer` header.
-func AuthMiddleware(apiKey string, allowNoAuth bool) gin.HandlerFunc {
+func AuthMiddleware(apiKey string, allowNoAuth bool) (gin.HandlerFunc, error) {
 	if apiKey == "" {
 		if allowNoAuth {
 			log.Println("Warning: starting without API key; authentication disabled")
-			return func(c *gin.Context) { c.Next() }
+			return func(c *gin.Context) { c.Next() }, nil
 		}
-		log.Panic("API key is required unless ALLOW_NO_AUTH is set")
+		return nil, fmt.Errorf("API key is required unless ALLOW_NO_AUTH is set")
 	}
 
 	return func(c *gin.Context) {
@@ -52,5 +53,5 @@ func AuthMiddleware(apiKey string, allowNoAuth bool) gin.HandlerFunc {
 		}
 
 		c.Next()
-	}
+	}, nil
 }
