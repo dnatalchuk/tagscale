@@ -134,19 +134,23 @@ func TestCLILimitValidation(t *testing.T) {
 }
 
 func TestCLIVersion(t *testing.T) {
-	cli := NewCLI()
-	var out bytes.Buffer
-	cli.SetOut(&out)
-	cli.SetArgs([]string{"version"})
-	require.NoError(t, cli.Execute())
-	require.Equal(t, Version+"\n", out.String())
+	cases := []struct {
+		args     []string
+		expected string
+	}{
+		{[]string{"version"}, Version + "\n"},
+		{[]string{"version", "--output", "json"}, fmt.Sprintf("{\"version\":\"%s\"}\n", Version)},
+		{[]string{"--version"}, Version + "\n"},
+	}
 
-	cli = NewCLI()
-	out.Reset()
-	cli.SetOut(&out)
-	cli.SetArgs([]string{"--version"})
-	require.NoError(t, cli.Execute())
-	require.Equal(t, Version+"\n", out.String())
+	for _, tt := range cases {
+		cli := NewCLI()
+		var out bytes.Buffer
+		cli.SetOut(&out)
+		cli.SetArgs(tt.args)
+		require.NoError(t, cli.Execute())
+		require.Equal(t, tt.expected, out.String())
+	}
 }
 
 func TestRunSummaryGroupByLimit(t *testing.T) {
