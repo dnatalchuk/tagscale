@@ -79,16 +79,19 @@ func (h *CostHandler) GetTopCosts(c *gin.Context) {
 func (h *CostHandler) CollectCosts(c *gin.Context) {
 	daysStr := c.DefaultQuery("days", "30")
 	days, err := strconv.Atoi(daysStr)
-	if err != nil {
-		days = 30
+	if err != nil || days <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid days parameter"})
+		return
 	}
 
-	go func() {
-		endDate := time.Now()
-		startDate := endDate.AddDate(0, 0, -days)
-		timeout := time.Duration(h.config.AWSRequestTimeout) * time.Second
-		h.costService.CollectCostData(startDate, endDate, timeout)
-	}()
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -days)
+	timeout := time.Duration(h.config.AWSRequestTimeout) * time.Second
+
+	if err := h.costService.CollectCostData(startDate, endDate, timeout); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Cost collection started"})
 }
