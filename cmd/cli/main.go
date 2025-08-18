@@ -125,9 +125,13 @@ func NewCLI() *cobra.Command {
 		region    string
 		profile   string
 		output    string
+		timeout   int
 		limit     int
 		groupBy   string
 	)
+
+	cfg, _ := config.Load()
+	timeout = cfg.AWSRequestTimeout
 
 	rootCmd := &cobra.Command{
 		Use:           "tagscale",
@@ -176,11 +180,12 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(dateRange, useDB, migrate, region, profile, output)
+			return runScan(dateRange, useDB, migrate, region, profile, output, timeout)
 		},
 	}
 
 	scanCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
+	scanCmd.Flags().IntVar(&timeout, "timeout", cfg.AWSRequestTimeout, "AWS request timeout in seconds")
 
 	// SUMMARY command
 	summaryCmd := &cobra.Command{
@@ -202,7 +207,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(rangeStr string, useDB, migrate bool, region, profile, output string) error {
+func runScan(rangeStr string, useDB, migrate bool, region, profile, output string, timeout int) error {
 	if output == "table" {
 		fmt.Println("🔍 Running TagScale scan...")
 	}
@@ -216,6 +221,10 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	cfg, err := config.Load()
 	if err != nil {
 		return errorf(output, "Failed to load config: %w", err)
+	}
+
+	if timeout <= 0 {
+		timeout = cfg.AWSRequestTimeout
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
@@ -234,7 +243,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	}
 
 	// Initialize AWS client with a timeout to avoid hanging during startup
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.AWSRequestTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 	awsClient, err := awsClientFactory(ctx, region, profile)
 	if err != nil {
@@ -244,7 +253,7 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(startDate, endDate, time.Duration(cfg.AWSRequestTimeout)*time.Second)
+	err = costService.CollectCostData(startDate, endDate, time.Duration(timeout)*time.Second)
 	if err != nil {
 		return errorf(output, "Cost data collection failed: %w", err)
 	}
