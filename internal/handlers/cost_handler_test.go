@@ -1,10 +1,14 @@
 package handlers_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -51,4 +55,58 @@ func TestGetTopCostsInvalidGroupBy(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCollectCostsInvalidDays(t *testing.T) {
+	service := setupCostService(t)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/costs/collect", handler.CollectCosts)
+
+	req, _ := http.NewRequest(http.MethodPost, "/costs/collect?days=abc", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCollectCostsNegativeDays(t *testing.T) {
+	service := setupCostService(t)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/costs/collect", handler.CollectCosts)
+
+	req, _ := http.NewRequest(http.MethodPost, "/costs/collect?days=-5", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+type errorCostExplorer struct{}
+
+func (e *errorCostExplorer) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	return nil, errors.New("boom")
+}
+
+func TestCollectCostsErrorPropagation(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	service := services.NewCostService(&errorCostExplorer{}, db)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/costs/collect", handler.CollectCosts)
+
+	req, _ := http.NewRequest(http.MethodPost, "/costs/collect?days=1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
