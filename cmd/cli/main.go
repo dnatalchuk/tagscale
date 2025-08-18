@@ -128,6 +128,8 @@ func NewCLI() *cobra.Command {
 		timeout   int
 		limit     int
 		groupBy   string
+		quiet     bool
+		verbose   bool
 	)
 
 	cfg, _ := config.Load()
@@ -143,6 +145,10 @@ func NewCLI() *cobra.Command {
 			if _, ok := allowedOutputFormats[output]; !ok {
 				_ = cmd.Help()
 				return fmt.Errorf("invalid output format %q: supported formats are table and json", output)
+			}
+			if quiet && verbose {
+				_ = cmd.Help()
+				return fmt.Errorf("cannot use --quiet and --verbose together")
 			}
 			if cmd.Name() == "summary" {
 				if limit <= 0 {
@@ -165,6 +171,8 @@ func NewCLI() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&region, "region", os.Getenv("AWS_REGION"), "AWS region (default from AWS_REGION)")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
 	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
+	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress progress output")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show verbose progress output")
 
 	// VERSION command
 	versionCmd := &cobra.Command{
@@ -184,7 +192,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(dateRange, useDB, migrate, region, profile, output, timeout)
+			return runScan(dateRange, useDB, migrate, region, profile, output, timeout, quiet, verbose)
 		},
 	}
 
@@ -196,7 +204,7 @@ func NewCLI() *cobra.Command {
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSummary(dateRange, useDB, migrate, output, groupBy, limit)
+			return runSummary(dateRange, useDB, migrate, output, groupBy, limit, quiet, verbose)
 		},
 	}
 
@@ -211,14 +219,18 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(rangeStr string, useDB, migrate bool, region, profile, output string, timeout int) error {
-	if output == "table" {
-		fmt.Println("🔍 Running TagScale scan...")
-	}
-
+func runScan(rangeStr string, useDB, migrate bool, region, profile, output string, timeout int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
+	}
+
+	if output == "table" && !quiet {
+		if verbose {
+			fmt.Printf("🔍 Running TagScale scan from %s to %s...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+		} else {
+			fmt.Println("🔍 Running TagScale scan...")
+		}
 	}
 
 	// Load config
@@ -264,8 +276,12 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 
 	if output == "json" {
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"message": "cost data collected"})
-	} else {
-		fmt.Println("✅ Cost data collected.")
+	} else if !quiet {
+		if verbose {
+			fmt.Printf("✅ Cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+		} else {
+			fmt.Println("✅ Cost data collected.")
+		}
 	}
 
 	return nil
@@ -311,10 +327,18 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int) error {
+func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
+	}
+
+	if output == "table" && !quiet {
+		if verbose {
+			fmt.Printf("📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), groupBy, limit)
+		} else {
+			fmt.Println("📊 Running TagScale summary...")
+		}
 	}
 
 	cfg, err := config.Load()
@@ -350,15 +374,22 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 	if output == "json" {
 		_ = json.NewEncoder(os.Stdout).Encode(latestAnalysis)
 	} else {
-		printAnalysis(latestAnalysis, groupBy)
+		if !quiet && verbose {
+			fmt.Println("✅ Analysis complete. Displaying results.")
+		}
+		printAnalysis(latestAnalysis, groupBy, quiet, verbose)
 	}
 
 	return nil
 }
 
-func printAnalysis(result services.AnalysisResult, groupBy string) {
+func printAnalysis(result services.AnalysisResult, groupBy string, quiet, verbose bool) {
 	fmt.Printf("\n💰 Total Cost: $%.2f\n", result.TotalCost)
 	fmt.Printf("🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
+
+	if quiet {
+		return
+	}
 
 	var (
 		items []models.CostSummary
@@ -390,7 +421,11 @@ func printAnalysis(result services.AnalysisResult, groupBy string) {
 		case "team":
 			label = s.Team
 		}
-		fmt.Printf(" • %-30s $%.2f\n", label, s.TotalCost)
+		if verbose {
+			fmt.Printf(" • %-30s $%.2f (%.1f%%)\n", label, s.TotalCost, s.Percentage)
+		} else {
+			fmt.Printf(" • %-30s $%.2f\n", label, s.TotalCost)
+		}
 	}
 
 	fmt.Println("\nInsights:")

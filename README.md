@@ -103,6 +103,8 @@ TagScale places it in `~/.tagscale/cli.db`. The `~/.tagscale` directory is creat
 `700` permissions so only your user can access its contents. Use `--migrate` to run any
 pending database migrations. Migrations are skipped by default for faster startup.
 
+Use `--quiet` (`-q`) to suppress progress messages or `--verbose` (`-v`) for more detailed output. These flags are mutually exclusive.
+
 To apply migrations explicitly, include `--migrate` with your command, for example:
 
 ```bash
