@@ -93,7 +93,8 @@ The binary will be created at `bin/tagscale-cli`.
 Check the installed version:
 
 ```bash
-./bin/tagscale-cli --version
+./bin/tagscale-cli version
+./bin/tagscale-cli version --output json
 ```
 
 By default the CLI stores all data in-memory. Use the `--db` flag to persist results

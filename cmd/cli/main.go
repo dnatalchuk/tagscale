@@ -171,6 +171,10 @@ func NewCLI() *cobra.Command {
 		Use:   "version",
 		Short: "Print the CLI version",
 		Run: func(cmd *cobra.Command, args []string) {
+			if output == "json" {
+				_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"version": Version})
+				return
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), Version)
 		},
 	}
