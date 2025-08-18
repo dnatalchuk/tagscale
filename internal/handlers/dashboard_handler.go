@@ -26,19 +26,19 @@ func (h *DashboardHandler) GetOverview(c *gin.Context) {
 	endDate := time.Now()
 	startDate := endDate.AddDate(0, 0, -30)
 
-	serviceSummary, err := h.costService.GetCostSummary(startDate, endDate, "service")
+	serviceSummary, err := h.costService.GetCostSummary(c.Request.Context(), startDate, endDate, "service")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	accountSummary, err := h.costService.GetCostSummary(startDate, endDate, "account")
+	accountSummary, err := h.costService.GetCostSummary(c.Request.Context(), startDate, endDate, "account")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	regionSummary, err := h.costService.GetCostSummary(startDate, endDate, "region")
+	regionSummary, err := h.costService.GetCostSummary(c.Request.Context(), startDate, endDate, "region")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -56,7 +56,7 @@ func (h *DashboardHandler) GetTrends(c *gin.Context) {
 	endDate := time.Now()
 	startDate := endDate.AddDate(0, 0, -30)
 
-	trends, err := h.costService.GetCostSummary(startDate, endDate, "date")
+	trends, err := h.costService.GetCostSummary(c.Request.Context(), startDate, endDate, "date")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -158,12 +158,36 @@ func TestGetCostSummary(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&recs).Error)
 	svc := services.NewCostService(nil, db)
-	results, err := svc.GetCostSummary(now.Add(-time.Hour), now.Add(time.Hour), "service")
+	results, err := svc.GetCostSummary(context.Background(), now.Add(-time.Hour), now.Add(time.Hour), "service")
 	require.NoError(t, err)
 	require.Len(t, results, 2)
 	require.Equal(t, "B", results[0].Service)
 	require.InDelta(t, 20.0, results[0].TotalCost, 0.001)
 	require.InDelta(t, 66.6, results[0].Percentage, 1)
+}
+
+func TestGetCostSummaryContextCanceled(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(nil, db)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.GetCostSummary(ctx, time.Now().Add(-time.Hour), time.Now(), "service")
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGetTopCostsContextCanceled(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(nil, db)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := svc.GetTopCosts(ctx, 5, "service")
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRunAnalysis(t *testing.T) {
