@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,7 +63,18 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	}
 	defer func() { awsClientFactory = origFactory }()
 
-	require.NoError(t, runScan("1", true, true, "", "", "table", 30))
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	old := os.Stdout
+	os.Stdout = w
+
+	require.NoError(t, runScan("1", true, true, "", "", "table", 30, true, false))
+
+	w.Close()
+	os.Stdout = old
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Empty(t, strings.TrimSpace(string(out)))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)

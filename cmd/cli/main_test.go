@@ -39,7 +39,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	require.NoError(t, runSummary("30", true, true, "table", "service", 5))
+	require.NoError(t, runSummary("30", true, true, "table", "service", 5, true, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestRunSummaryClosesDB(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	require.NoError(t, runSummary("30", true, true, "table", "service", 5))
+	require.NoError(t, runSummary("30", true, true, "table", "service", 5, true, false))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -133,6 +133,15 @@ func TestCLILimitValidation(t *testing.T) {
 	}
 }
 
+func TestCLIQuietVerboseConflict(t *testing.T) {
+	cli := NewCLI()
+	cli.AddCommand(&cobra.Command{Use: "noop", Run: func(cmd *cobra.Command, args []string) {}})
+	cli.SetArgs([]string{"noop", "--quiet", "--verbose"})
+	err := cli.Execute()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot use --quiet and --verbose together")
+}
+
 func TestCLIVersion(t *testing.T) {
 	cases := []struct {
 		args     []string
@@ -194,7 +203,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			old := os.Stdout
 			os.Stdout = w
 
-			require.NoError(t, runSummary("30", true, false, "table", tt.group, tt.limit))
+			require.NoError(t, runSummary("30", true, false, "table", tt.group, tt.limit, false, false))
 
 			w.Close()
 			os.Stdout = old
@@ -234,7 +243,7 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 
-	require.NoError(t, runSummary("7", true, false, "table", "service", 5))
+	require.NoError(t, runSummary("7", true, false, "table", "service", 5, false, false))
 
 	w.Close()
 	os.Stdout = old
