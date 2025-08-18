@@ -2,6 +2,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"tagscale/internal/config"
 	"tagscale/internal/handlers"
@@ -28,7 +29,7 @@ func New(config *config.Config, costService *services.CostService, analysisServi
 	}
 }
 
-func (s *Server) Router() http.Handler {
+func (s *Server) Router() (http.Handler, error) {
 	r := gin.New()
 	r.Use(middleware.LoggingMiddleware())
 	r.Use(gin.Recovery())
@@ -38,8 +39,13 @@ func (s *Server) Router() http.Handler {
 	analysisHandler := handlers.NewAnalysisHandler(s.analysisService)
 	dashboardHandler := handlers.NewDashboardHandler(s.costService, s.analysisService)
 
+	authMiddleware, err := middleware.AuthMiddleware(s.config.APIKey, s.config.AllowNoAuth)
+	if err != nil {
+		return nil, fmt.Errorf("auth middleware setup failed: %w", err)
+	}
+
 	// API routes
-	api := r.Group("/api/v1", middleware.AuthMiddleware(s.config.APIKey, s.config.AllowNoAuth))
+	api := r.Group("/api/v1", authMiddleware)
 	{
 		api.GET("/costs/summary", costHandler.GetCostSummary)
 		api.GET("/costs/top", costHandler.GetTopCosts)
@@ -65,5 +71,5 @@ func (s *Server) Router() http.Handler {
 		AllowCredentials: true,
 	})
 
-	return c.Handler(r)
+	return c.Handler(r), nil
 }

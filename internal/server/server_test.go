@@ -12,7 +12,10 @@ import (
 func TestCustomCORSOrigins(t *testing.T) {
 	cfg := &config.Config{AllowedOrigins: []string{"https://example.com"}, AllowNoAuth: true}
 	srv := server.New(cfg, nil, nil, nil)
-	handler := srv.Router()
+	handler, err := srv.Router()
+	if err != nil {
+		t.Fatalf("Router returned error: %v", err)
+	}
 
 	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
 	req.Header.Set("Origin", "https://example.com")

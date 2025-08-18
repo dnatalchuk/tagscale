@@ -30,7 +30,9 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			router.Use(middleware.AuthMiddleware("secret", false))
+			h, err := middleware.AuthMiddleware("secret", false)
+			require.NoError(t, err)
+			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 			req, _ := http.NewRequest(http.MethodGet, "/", nil)
@@ -51,15 +53,16 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 func TestAuthMiddlewareNoAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	t.Run("panic when not allowed", func(t *testing.T) {
-		require.Panics(t, func() {
-			middleware.AuthMiddleware("", false)
-		})
+	t.Run("error when not allowed", func(t *testing.T) {
+		_, err := middleware.AuthMiddleware("", false)
+		require.Error(t, err)
 	})
 
 	t.Run("allow when explicitly permitted", func(t *testing.T) {
 		router := gin.New()
-		router.Use(middleware.AuthMiddleware("", true))
+		h, err := middleware.AuthMiddleware("", true)
+		require.NoError(t, err)
+		router.Use(h)
 		router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 		req, _ := http.NewRequest(http.MethodGet, "/", nil)
