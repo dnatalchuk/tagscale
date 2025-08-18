@@ -43,7 +43,7 @@ func (h *CostHandler) GetCostSummary(c *gin.Context) {
 		return
 	}
 
-	summary, err := h.costService.GetCostSummary(startDate, endDate, groupBy)
+	summary, err := h.costService.GetCostSummary(c.Request.Context(), startDate, endDate, groupBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -67,7 +67,7 @@ func (h *CostHandler) GetTopCosts(c *gin.Context) {
 		return
 	}
 
-	topCosts, err := h.costService.GetTopCosts(limit, groupBy)
+	topCosts, err := h.costService.GetTopCosts(c.Request.Context(), limit, groupBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

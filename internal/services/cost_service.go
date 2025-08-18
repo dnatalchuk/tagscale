@@ -141,14 +141,14 @@ func (s *CostService) CollectCostData(startDate, endDate time.Time, timeout time
 	return nil
 }
 
-func (s *CostService) GetCostSummary(startDate, endDate time.Time, groupBy string) ([]models.CostSummary, error) {
+func (s *CostService) GetCostSummary(ctx context.Context, startDate, endDate time.Time, groupBy string) ([]models.CostSummary, error) {
 	if !IsGroupByAllowed(groupBy) {
 		return nil, fmt.Errorf("invalid group by field")
 	}
 
 	var results []models.CostSummary
 
-	query := s.db.Model(&models.CostRecord{}).
+	query := s.db.WithContext(ctx).Model(&models.CostRecord{}).
 		Select(fmt.Sprintf("%s, SUM(cost) as total_cost", groupBy)).
 		Where("date >= ? AND date <= ?", startDate, endDate).
 		Group(groupBy).
@@ -173,14 +173,14 @@ func (s *CostService) GetCostSummary(startDate, endDate time.Time, groupBy strin
 	return results, nil
 }
 
-func (s *CostService) GetTopCosts(limit int, groupBy string) ([]models.CostSummary, error) {
+func (s *CostService) GetTopCosts(ctx context.Context, limit int, groupBy string) ([]models.CostSummary, error) {
 	if !IsGroupByAllowed(groupBy) {
 		return nil, fmt.Errorf("invalid group by field")
 	}
 
 	var results []models.CostSummary
 
-	query := s.db.Model(&models.CostRecord{}).
+	query := s.db.WithContext(ctx).Model(&models.CostRecord{}).
 		Select(fmt.Sprintf("%s, SUM(cost) as total_cost", groupBy)).
 		Group(groupBy).
 		Order("total_cost DESC").
