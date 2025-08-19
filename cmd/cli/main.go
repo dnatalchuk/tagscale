@@ -197,7 +197,7 @@ func NewCLI() *cobra.Command {
 	}
 
 	scanCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
-	scanCmd.Flags().IntVar(&timeout, "timeout", cfg.AWSRequestTimeout, "AWS request timeout in seconds")
+	scanCmd.Flags().IntVar(&timeout, "timeout", cfg.AWSRequestTimeout, "AWS request timeout in seconds (must be > 0)")
 
 	// SUMMARY command
 	summaryCmd := &cobra.Command{
@@ -245,7 +245,7 @@ func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, mi
 	}
 
 	if timeout <= 0 {
-		timeout = cfg.AWSRequestTimeout
+		return errorf(output, "timeout must be greater than 0")
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
