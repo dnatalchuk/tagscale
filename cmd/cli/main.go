@@ -420,8 +420,10 @@ func printAnalysis(result services.AnalysisResult, groupBy string, quiet, verbos
 		}
 	}
 
-	fmt.Println("\nInsights:")
-	for _, insight := range result.Insights {
-		fmt.Printf(" • %s\n", insight)
+	if len(result.Insights) > 0 {
+		fmt.Println("\nInsights:")
+		for _, insight := range result.Insights {
+			fmt.Printf(" • %s\n", insight)
+		}
 	}
 }
