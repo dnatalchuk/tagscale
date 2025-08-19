@@ -14,6 +14,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"tagscale/internal/config"
 	"tagscale/internal/models"
 )
 
@@ -39,7 +40,9 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	require.NoError(t, runSummary("30", true, true, "table", "service", 5, true, false))
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.NoError(t, runSummary(cfg, "30", true, true, "table", "service", 5, true, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -54,7 +57,9 @@ func TestRunSummaryClosesDB(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	require.NoError(t, runSummary("30", true, true, "table", "service", 5, true, false))
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.NoError(t, runSummary(cfg, "30", true, true, "table", "service", 5, true, false))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -184,6 +189,9 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&mappings).Error)
 
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
 	cases := []struct {
 		group   string
 		limit   int
@@ -203,7 +211,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			old := os.Stdout
 			os.Stdout = w
 
-			require.NoError(t, runSummary("30", true, false, "table", tt.group, tt.limit, false, false))
+			require.NoError(t, runSummary(cfg, "30", true, false, "table", tt.group, tt.limit, false, false))
 
 			w.Close()
 			os.Stdout = old
@@ -238,12 +246,15 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&recs).Error)
 
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	old := os.Stdout
 	os.Stdout = w
 
-	require.NoError(t, runSummary("7", true, false, "table", "service", 5, false, false))
+	require.NoError(t, runSummary(cfg, "7", true, false, "table", "service", 5, false, false))
 
 	w.Close()
 	os.Stdout = old
