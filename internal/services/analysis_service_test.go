@@ -158,11 +158,28 @@ func TestRunAnalysisHonorsRange(t *testing.T) {
 	require.NoError(t, db.Create(&recs).Error)
 
 	svc := services.NewAnalysisService(db)
-	require.NoError(t, svc.RunAnalysis(5, now.AddDate(0, 0, -7), now))
+	_, err := svc.RunAnalysis(5, now.AddDate(0, 0, -7), now, true)
+	require.NoError(t, err)
 
 	var analysis models.CostAnalysis
 	require.NoError(t, db.Last(&analysis).Error)
 	require.InDelta(t, 5.0, analysis.TotalCost, 0.001)
+}
+
+func TestRunAnalysisSkipSave(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	now := time.Now()
+	rec := models.CostRecord{Date: now, Service: "svc", Cost: 1, Tags: "{}"}
+	require.NoError(t, db.Create(&rec).Error)
+
+	svc := services.NewAnalysisService(db)
+	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, false)
+	require.NoError(t, err)
+
+	var count int64
+	require.NoError(t, db.Model(&models.CostAnalysis{}).Count(&count).Error)
+	require.Equal(t, int64(0), count)
 }
 
 func TestRunAnalysisReturnsErrorWhenGetTopCostsFails(t *testing.T) {
@@ -174,7 +191,7 @@ func TestRunAnalysisReturnsErrorWhenGetTopCostsFails(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date, cost, tags) VALUES (?, ?, '{}')`, now, 1).Error)
 
 	svc := services.NewAnalysisService(db)
-	err = svc.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour))
+	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), true)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get top services")
 }
@@ -187,7 +204,7 @@ func TestRunAnalysisReturnsErrorWhenMarshalFails(t *testing.T) {
 	require.NoError(t, db.Create(&rec).Error)
 
 	svc := services.NewAnalysisService(db)
-	err := svc.RunAnalysis(5, now.Add(-time.Hour), now)
+	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, true)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "marshal top services")
 }
@@ -202,17 +219,18 @@ func (f *fakeAnalysisService) GetTopCosts(limit int, groupBy string, startDate, 
 	return []models.CostSummary{}, nil
 }
 
-func (f *fakeAnalysisService) RunAnalysisSequential(limit int, startDate, endDate time.Time) error {
+func (f *fakeAnalysisService) RunAnalysisSequential(limit int, startDate, endDate time.Time, save bool) (services.AnalysisResult, error) {
 	if _, err := f.GetTopCosts(limit, "service", startDate, endDate); err != nil {
-		return err
+		return services.AnalysisResult{}, err
 	}
 	if _, err := f.GetTopCosts(limit, "account", startDate, endDate); err != nil {
-		return err
+		return services.AnalysisResult{}, err
 	}
 	if _, err := f.GetTopCosts(limit, "region", startDate, endDate); err != nil {
-		return err
+		return services.AnalysisResult{}, err
 	}
-	return nil
+	// Saving is omitted for simplicity in tests/benchmarks.
+	return services.AnalysisResult{}, nil
 }
 
 func TestRunAnalysisFetchesTopCostsConcurrently(t *testing.T) {
@@ -226,7 +244,8 @@ func TestRunAnalysisFetchesTopCostsConcurrently(t *testing.T) {
 	fake := &fakeAnalysisService{AnalysisService: baseSvc, delay: 100 * time.Millisecond}
 
 	start := time.Now()
-	require.NoError(t, fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour)))
+	_, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), false)
+	require.NoError(t, err)
 	elapsed := time.Since(start)
 
 	require.Less(t, elapsed, 250*time.Millisecond)
@@ -253,7 +272,7 @@ func BenchmarkRunAnalysisConcurrent(b *testing.B) {
 
 	b.Run("sequential", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if err := fake.RunAnalysisSequential(5, now.Add(-time.Hour), now.Add(time.Hour)); err != nil {
+			if _, err := fake.RunAnalysisSequential(5, now.Add(-time.Hour), now.Add(time.Hour), false); err != nil {
 				b.Fatalf("sequential run: %v", err)
 			}
 		}
@@ -261,7 +280,7 @@ func BenchmarkRunAnalysisConcurrent(b *testing.B) {
 
 	b.Run("concurrent", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour)); err != nil {
+			if _, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), false); err != nil {
 				b.Fatalf("concurrent run: %v", err)
 			}
 		}

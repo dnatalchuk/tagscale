@@ -41,7 +41,8 @@ func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
 
-func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) error {
+func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, save bool) (AnalysisResult, error) {
+	var result AnalysisResult
 	// Get total cost
 	var totalCost float64
 	s.db.Model(&models.CostRecord{}).
@@ -105,27 +106,14 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) e
 	if err := g.Wait(); err != nil {
 		switch {
 		case errSvc != nil:
-			return errSvc
+			return result, errSvc
 		case errAcct != nil:
-			return errAcct
+			return result, errAcct
 		case errReg != nil:
-			return errReg
+			return result, errReg
 		default:
-			return err
+			return result, err
 		}
-	}
-
-	topServicesJSON, err := json.Marshal(topServices)
-	if err != nil {
-		return fmt.Errorf("failed to marshal top services: %w", err)
-	}
-	topAccountsJSON, err := json.Marshal(topAccounts)
-	if err != nil {
-		return fmt.Errorf("failed to marshal top accounts: %w", err)
-	}
-	topRegionsJSON, err := json.Marshal(topRegions)
-	if err != nil {
-		return fmt.Errorf("failed to marshal top regions: %w", err)
 	}
 
 	// Infer team ownership
@@ -134,19 +122,46 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) e
 	if len(costByTeam) > limit {
 		costByTeam = costByTeam[:limit]
 	}
-	costByTeamJSON, err := json.Marshal(costByTeam)
-	if err != nil {
-		return fmt.Errorf("failed to marshal cost by team: %w", err)
-	}
 
 	// Generate insights
 	insights := s.GenerateInsights(totalCost, untaggedPercent, topServices)
-	insightsJSON, err := json.Marshal(insights)
-	if err != nil {
-		return fmt.Errorf("failed to marshal insights: %w", err)
+
+	result = AnalysisResult{
+		TotalCost:       totalCost,
+		UntaggedCost:    untaggedCost,
+		UntaggedPercent: untaggedPercent,
+		TopServices:     topServices,
+		TopAccounts:     topAccounts,
+		TopRegions:      topRegions,
+		CostByTeam:      costByTeam,
+		Insights:        insights,
 	}
 
-	// Save analysis
+	if !save {
+		return result, nil
+	}
+
+	topServicesJSON, err := json.Marshal(topServices)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to marshal top services: %w", err)
+	}
+	topAccountsJSON, err := json.Marshal(topAccounts)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to marshal top accounts: %w", err)
+	}
+	topRegionsJSON, err := json.Marshal(topRegions)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to marshal top regions: %w", err)
+	}
+	costByTeamJSON, err := json.Marshal(costByTeam)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to marshal cost by team: %w", err)
+	}
+	insightsJSON, err := json.Marshal(insights)
+	if err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to marshal insights: %w", err)
+	}
+
 	analysis := models.CostAnalysis{
 		Date:            endDate,
 		TotalCost:       totalCost,
@@ -160,10 +175,10 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time) e
 	}
 
 	if err := s.db.Create(&analysis).Error; err != nil {
-		return fmt.Errorf("failed to save analysis: %w", err)
+		return AnalysisResult{}, fmt.Errorf("failed to save analysis: %w", err)
 	}
 
-	return nil
+	return result, nil
 }
 
 func (s *AnalysisService) GetTopCosts(limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {

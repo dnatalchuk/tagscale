@@ -360,25 +360,18 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 
 	analysisService := services.NewAnalysisService(db)
 
-	// Run analysis so we have fresh data
-	err = analysisService.RunAnalysis(limit, startDate, endDate)
+	result, err := analysisService.RunAnalysis(limit, startDate, endDate, false)
 	if err != nil {
 		return errorf(output, "Analysis failed: %w", err)
 	}
 
-	// Fetch latest analysis
-	latestAnalysis, err := analysisService.GetLatestAnalysis()
-	if err != nil {
-		return errorf(output, "Failed to fetch latest analysis: %w", err)
-	}
-
 	if output == "json" {
-		_ = json.NewEncoder(os.Stdout).Encode(latestAnalysis)
+		_ = json.NewEncoder(os.Stdout).Encode(result)
 	} else {
 		if !quiet && verbose {
 			fmt.Println("✅ Analysis complete. Displaying results.")
 		}
-		printAnalysis(latestAnalysis, groupBy, quiet, verbose)
+		printAnalysis(result, groupBy, quiet, verbose)
 	}
 
 	return nil
