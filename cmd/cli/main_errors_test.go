@@ -3,10 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"tagscale/internal/config"
 )
 
 func TestScanCmdErrorBubblesUp(t *testing.T) {
@@ -63,4 +67,39 @@ func TestSummaryCmdJSONError(t *testing.T) {
 	var resp map[string]string
 	require.NoError(t, json.Unmarshal(outBuf.Bytes(), &resp))
 	require.Contains(t, resp["error"], "Invalid range")
+}
+
+func TestNewCLIConfigLoadFailure(t *testing.T) {
+	origLoader := configLoader
+	origExit := exitFunc
+	defer func() {
+		configLoader = origLoader
+		exitFunc = origExit
+	}()
+
+	configLoader = func() (*config.Config, error) {
+		return nil, fmt.Errorf("boom")
+	}
+
+	var stderr bytes.Buffer
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&stderr, r)
+		close(done)
+	}()
+
+	exitFunc = func(code int) {
+		panic(fmt.Sprintf("exit %d", code))
+	}
+
+	require.PanicsWithValue(t, "exit 1", func() { NewCLI() })
+
+	w.Close()
+	<-done
+	os.Stderr = oldStderr
+
+	require.Contains(t, stderr.String(), "Failed to load config: boom")
 }
