@@ -50,6 +50,26 @@ func (m *timeoutMockAWSClient) GetCostAndUsage(ctx context.Context, startDate, e
 	}
 }
 
+type pagingDelayMockAWSClient struct {
+	delay time.Duration
+	pages int
+	call  int
+}
+
+func (m *pagingDelayMockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	select {
+	case <-time.After(m.delay):
+		var token *string
+		if m.call < m.pages-1 {
+			token = aws.String(fmt.Sprintf("token%d", m.call))
+		}
+		m.call++
+		return &costexplorer.GetCostAndUsageOutput{NextPageToken: token}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 type streamingMockAWSClient struct {
 	outputs               []*costexplorer.GetCostAndUsageOutput
 	db                    *gorm.DB
@@ -97,7 +117,7 @@ func TestCollectCostData(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(start, end, 30*time.Second)
+	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second)
 	require.NoError(t, err)
 
 	var recs []models.CostRecord
@@ -149,7 +169,7 @@ func TestCollectCostDataPagination(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(start, end, 30*time.Second))
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second))
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
@@ -195,7 +215,7 @@ func TestCollectCostDataStreaming(t *testing.T) {
 	svc := services.NewCostService(mock, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(start, end, 30*time.Second))
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second))
 
 	// Ensure first page records were written before requesting the second page
 	require.Greater(t, mock.countBeforeSecondCall, int64(0))
@@ -212,9 +232,32 @@ func TestCollectCostDataTimeout(t *testing.T) {
 	svc := services.NewCostService(&timeoutMockAWSClient{delay: 50 * time.Millisecond}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(start, end, 10*time.Millisecond)
+	err := svc.CollectCostData(context.Background(), start, end, 10*time.Millisecond)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestCollectCostDataContextCanceled(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(&timeoutMockAWSClient{delay: 50 * time.Millisecond}, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := svc.CollectCostData(ctx, start, end, 30*time.Second)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestCollectCostDataPerRequestTimeout(t *testing.T) {
+	db := setupDB(t)
+	client := &pagingDelayMockAWSClient{delay: 20 * time.Millisecond, pages: 2}
+	svc := services.NewCostService(client, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	// Timeout shorter than total duration but longer than each request
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Millisecond))
+	require.Equal(t, 2, client.call)
 }
 
 func TestGetCostSummary(t *testing.T) {

@@ -51,19 +51,20 @@ func NewCostService(awsClient CostExplorerAPI, db *gorm.DB) *CostService {
 
 // CollectCostData retrieves AWS cost data for the provided time range
 // and stores the results in the database.
-// The provided timeout controls how long the AWS API calls may take before
-// being canceled.
-func (s *CostService) CollectCostData(startDate, endDate time.Time, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
+// The provided timeout controls how long each AWS API call may take before
+// being canceled. A fresh context with the timeout is created for every
+// request so that the limit applies per request rather than for the entire
+// operation.
+func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate time.Time, timeout time.Duration) error {
 	// Retrieve pages from Cost Explorer one at a time. After processing each
 	// page, insert its records before requesting the next page so that large
 	// result sets don't have to be held entirely in memory.
 	var nextToken *string
 	for {
-		result, err := s.awsClient.GetCostAndUsage(ctx, startDate, endDate, nextToken)
+		reqCtx, cancel := context.WithTimeout(ctx, timeout)
+		result, err := s.awsClient.GetCostAndUsage(reqCtx, startDate, endDate, nextToken)
 		if err != nil {
+			cancel()
 			return fmt.Errorf("failed to get cost data: %w", err)
 		}
 
@@ -121,10 +122,13 @@ func (s *CostService) CollectCostData(startDate, endDate time.Time, timeout time
 		}
 
 		if len(costRecords) > 0 {
-			if err := s.db.WithContext(ctx).CreateInBatches(costRecords, 100).Error; err != nil {
+			if err := s.db.WithContext(reqCtx).CreateInBatches(costRecords, 100).Error; err != nil {
+				cancel()
 				return fmt.Errorf("failed to insert cost records: %w", err)
 			}
 		}
+
+		cancel()
 
 		if result.NextPageToken == nil || *result.NextPageToken == "" {
 			break
