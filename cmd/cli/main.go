@@ -303,9 +303,6 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 			return time.Time{}, time.Time{}, fmt.Errorf("days must be non-negative")
 		}
 		start := now.AddDate(0, 0, -n)
-		if now.Before(start) {
-			return time.Time{}, time.Time{}, fmt.Errorf("start date %s is after end date %s", start.Format("2006-01-02"), now.Format("2006-01-02"))
-		}
 		return start, now, nil
 	}
 

@@ -93,8 +93,7 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 
 func TestParseDateRangeNegativeDays(t *testing.T) {
 	_, _, err := parseDateRange("-5")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "non-negative")
+	require.EqualError(t, err, "days must be non-negative")
 }
 
 func TestParseDateRangeInvertedRange(t *testing.T) {
