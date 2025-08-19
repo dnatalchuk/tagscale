@@ -10,7 +10,6 @@ import (
 	"tagscale/internal/models"
 
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
-	"github.com/aws/aws-sdk-go-v2/service/costexplorer/types"
 	"gorm.io/gorm"
 )
 
@@ -58,84 +57,79 @@ func (s *CostService) CollectCostData(startDate, endDate time.Time, timeout time
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	// Retrieve all pages from Cost Explorer. The API returns a NextPageToken when
-	// additional results are available. We keep calling until no token is
-	// returned, accumulating the ResultsByTime across pages before
-	// processing.
-	var (
-		nextToken  *string
-		allResults []types.ResultByTime
-	)
+	// Retrieve pages from Cost Explorer one at a time. After processing each
+	// page, insert its records before requesting the next page so that large
+	// result sets don't have to be held entirely in memory.
+	var nextToken *string
 	for {
 		result, err := s.awsClient.GetCostAndUsage(ctx, startDate, endDate, nextToken)
 		if err != nil {
 			return fmt.Errorf("failed to get cost data: %w", err)
 		}
-		allResults = append(allResults, result.ResultsByTime...)
+
+		var costRecords []models.CostRecord
+
+		for _, resultByTime := range result.ResultsByTime {
+			date, err := time.Parse("2006-01-02", *resultByTime.TimePeriod.Start)
+			if err != nil {
+				continue
+			}
+
+			for _, group := range resultByTime.Groups {
+				if len(group.Keys) < 3 {
+					continue
+				}
+
+				service := group.Keys[0]
+				account := group.Keys[1]
+				region := group.Keys[2]
+				resourceID := ""
+				if len(group.Keys) >= 4 {
+					resourceID = group.Keys[3]
+				}
+				tagValue := ""
+				if len(group.Keys) >= 5 {
+					tagValue = group.Keys[4]
+				}
+
+				tags := make(map[string]string)
+				if tagValue != "" {
+					tags["Team"] = tagValue
+				}
+				tagsJSON, _ := json.Marshal(tags)
+
+				costAmount := 0.0
+				if metric, ok := group.Metrics["BlendedCost"]; ok {
+					if amount := metric.Amount; amount != nil {
+						costAmount, _ = strconv.ParseFloat(*amount, 64)
+					}
+				}
+
+				costRecord := models.CostRecord{
+					Date:       date,
+					Service:    service,
+					Account:    account,
+					Region:     region,
+					ResourceID: resourceID,
+					Cost:       costAmount,
+					Currency:   "USD",
+					Tags:       string(tagsJSON),
+				}
+
+				costRecords = append(costRecords, costRecord)
+			}
+		}
+
+		if len(costRecords) > 0 {
+			if err := s.db.WithContext(ctx).CreateInBatches(costRecords, 100).Error; err != nil {
+				return fmt.Errorf("failed to insert cost records: %w", err)
+			}
+		}
+
 		if result.NextPageToken == nil || *result.NextPageToken == "" {
 			break
 		}
 		nextToken = result.NextPageToken
-	}
-
-	var costRecords []models.CostRecord
-
-	for _, resultByTime := range allResults {
-		date, err := time.Parse("2006-01-02", *resultByTime.TimePeriod.Start)
-		if err != nil {
-			continue
-		}
-
-		for _, group := range resultByTime.Groups {
-			if len(group.Keys) < 3 {
-				continue
-			}
-
-			service := group.Keys[0]
-			account := group.Keys[1]
-			region := group.Keys[2]
-			resourceID := ""
-			if len(group.Keys) >= 4 {
-				resourceID = group.Keys[3]
-			}
-			tagValue := ""
-			if len(group.Keys) >= 5 {
-				tagValue = group.Keys[4]
-			}
-
-			tags := make(map[string]string)
-			if tagValue != "" {
-				tags["Team"] = tagValue
-			}
-			tagsJSON, _ := json.Marshal(tags)
-
-			costAmount := 0.0
-			if metric, ok := group.Metrics["BlendedCost"]; ok {
-				if amount := metric.Amount; amount != nil {
-					costAmount, _ = strconv.ParseFloat(*amount, 64)
-				}
-			}
-
-			costRecord := models.CostRecord{
-				Date:       date,
-				Service:    service,
-				Account:    account,
-				Region:     region,
-				ResourceID: resourceID,
-				Cost:       costAmount,
-				Currency:   "USD",
-				Tags:       string(tagsJSON),
-			}
-
-			costRecords = append(costRecords, costRecord)
-		}
-	}
-
-	// Batch insert cost records
-	if len(costRecords) > 0 {
-		if err := s.db.WithContext(ctx).CreateInBatches(costRecords, 100).Error; err != nil {
-			return fmt.Errorf("failed to insert cost records: %w", err)
-		}
 	}
 
 	return nil

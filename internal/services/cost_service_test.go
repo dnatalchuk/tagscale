@@ -50,6 +50,25 @@ func (m *timeoutMockAWSClient) GetCostAndUsage(ctx context.Context, startDate, e
 	}
 }
 
+type streamingMockAWSClient struct {
+	outputs               []*costexplorer.GetCostAndUsageOutput
+	db                    *gorm.DB
+	call                  int
+	countBeforeSecondCall int64
+}
+
+func (m *streamingMockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	if m.call == 1 {
+		m.db.Model(&models.CostRecord{}).Count(&m.countBeforeSecondCall)
+	}
+	if m.call >= len(m.outputs) {
+		return &costexplorer.GetCostAndUsageOutput{}, nil
+	}
+	out := m.outputs[m.call]
+	m.call++
+	return out, nil
+}
+
 func setupDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
@@ -131,6 +150,55 @@ func TestCollectCostDataPagination(t *testing.T) {
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
 	require.NoError(t, svc.CollectCostData(start, end, 30*time.Second))
+
+	var recs []models.CostRecord
+	require.NoError(t, db.Find(&recs).Error)
+	require.Len(t, recs, 2)
+	require.Equal(t, "AmazonEC2", recs[0].Service)
+	require.Equal(t, "AmazonS3", recs[1].Service)
+}
+
+func TestCollectCostDataStreaming(t *testing.T) {
+	db := setupDB(t)
+	page1 := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-01"), End: aws.String("2023-01-02")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonEC2", "123456789012", "us-east-1", "i-abc123", "backend"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("5"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+		NextPageToken: aws.String("token1"),
+	}
+	page2 := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-02"), End: aws.String("2023-01-03")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonS3", "123456789012", "us-east-1", "bucket123", "frontend"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("3"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+	}
+	mock := &streamingMockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}, db: db}
+	svc := services.NewCostService(mock, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	require.NoError(t, svc.CollectCostData(start, end, 30*time.Second))
+
+	// Ensure first page records were written before requesting the second page
+	require.Greater(t, mock.countBeforeSecondCall, int64(0))
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
