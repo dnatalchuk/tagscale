@@ -113,7 +113,7 @@
 **Purpose**: Secures API access using token-based authentication.
 
 **Supports**:
-- API key validation (`Authorization: Bearer <API_KEY>`)
+- API key validation (`Authorization: Bearer <API_KEY>`; supports multiple keys)
 - Role-based access (future)
 - OAuth provider integration (future)
 
