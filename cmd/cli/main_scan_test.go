@@ -71,7 +71,7 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runScan(cfg, "1", true, true, "", "", "table", 30, true, false))
+	require.NoError(t, runScan(context.Background(), cfg, "1", true, true, "", "", "table", 30, true, false))
 
 	w.Close()
 	os.Stdout = old

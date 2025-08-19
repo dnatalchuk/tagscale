@@ -192,7 +192,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(cfg, dateRange, useDB, migrate, region, profile, output, timeout, quiet, verbose)
+			return runScan(cmd.Context(), cfg, dateRange, useDB, migrate, region, profile, output, timeout, quiet, verbose)
 		},
 	}
 
@@ -230,7 +230,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(cfg *config.Config, rangeStr string, useDB, migrate bool, region, profile, output string, timeout int, quiet, verbose bool) error {
+func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, migrate bool, region, profile, output string, timeout int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -264,9 +264,9 @@ func runScan(cfg *config.Config, rangeStr string, useDB, migrate bool, region, p
 	}
 
 	// Initialize AWS client with a timeout to avoid hanging during startup
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	awsCtx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
-	awsClient, err := awsClientFactory(ctx, region, profile)
+	awsClient, err := awsClientFactory(awsCtx, region, profile)
 	if err != nil {
 		return errorf(output, "Failed to init AWS client: %w", err)
 	}
@@ -274,7 +274,7 @@ func runScan(cfg *config.Config, rangeStr string, useDB, migrate bool, region, p
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(startDate, endDate, time.Duration(timeout)*time.Second)
+	err = costService.CollectCostData(ctx, startDate, endDate, time.Duration(timeout)*time.Second)
 	if err != nil {
 		return errorf(output, "Cost data collection failed: %w", err)
 	}
