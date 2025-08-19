@@ -2,13 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -16,7 +19,14 @@ import (
 
 	"tagscale/internal/config"
 	"tagscale/internal/models"
+	"tagscale/internal/services"
 )
+
+type mockQuietAWSClient struct{}
+
+func (m *mockQuietAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	return &costexplorer.GetCostAndUsageOutput{}, nil
+}
 
 func TestCliDBPathPermissions(t *testing.T) {
 	tmp := t.TempDir()
@@ -70,6 +80,61 @@ func TestRunSummaryClosesDB(t *testing.T) {
 		}
 		require.NotContains(t, link, dbPath)
 	}
+}
+
+func TestRunSummaryQuietModeNoOutput(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	old := os.Stdout
+	os.Stdout = w
+
+	err = runSummary(cfg, "30", true, true, "table", "service", 5, true, false)
+	w.Close()
+	os.Stdout = old
+	require.NoError(t, err)
+
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Empty(t, strings.TrimSpace(string(out)))
+}
+
+func TestRunScanQuietModeNoOutput(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	mockClient := &mockQuietAWSClient{}
+	origFactory := awsClientFactory
+	awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+		return mockClient, nil
+	}
+	defer func() { awsClientFactory = origFactory }()
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	old := os.Stdout
+	os.Stdout = w
+
+	err = runScan(context.Background(), cfg, "1", true, true, "", "", "table", 30, true, false)
+	w.Close()
+	os.Stdout = old
+	require.NoError(t, err)
+
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Empty(t, strings.TrimSpace(string(out)))
 }
 
 func TestCLIOutputFormatValidation(t *testing.T) {

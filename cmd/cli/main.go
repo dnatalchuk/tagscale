@@ -279,9 +279,11 @@ func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, mi
 		return errorf(output, "Cost data collection failed: %w", err)
 	}
 
-	if output == "json" {
+	if quiet && output != "json" {
+		// Suppress all non-JSON output when in quiet mode.
+	} else if output == "json" {
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"message": "cost data collected"})
-	} else if !quiet {
+	} else {
 		if verbose {
 			fmt.Printf("✅ Cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 		} else {
@@ -374,12 +376,12 @@ func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, output
 }
 
 func printAnalysis(result services.AnalysisResult, groupBy string, quiet, verbose bool) {
-	fmt.Printf("\n💰 Total Cost: $%.2f\n", result.TotalCost)
-	fmt.Printf("🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
-
 	if quiet {
 		return
 	}
+
+	fmt.Printf("\n💰 Total Cost: $%.2f\n", result.TotalCost)
+	fmt.Printf("🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
 
 	var (
 		items []models.CostSummary
