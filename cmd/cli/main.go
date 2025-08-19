@@ -150,16 +150,6 @@ func NewCLI() *cobra.Command {
 				_ = cmd.Help()
 				return fmt.Errorf("cannot use --quiet and --verbose together")
 			}
-			if cmd.Name() == "summary" {
-				if limit <= 0 {
-					_ = cmd.Help()
-					return fmt.Errorf("limit must be greater than 0")
-				}
-				if _, ok := allowedGroupByOptions[groupBy]; !ok {
-					_ = cmd.Help()
-					return fmt.Errorf("invalid group-by value %q: supported options are service, account, region, and team", groupBy)
-				}
-			}
 			return nil
 		},
 	}
@@ -203,6 +193,17 @@ func NewCLI() *cobra.Command {
 	summaryCmd := &cobra.Command{
 		Use:   "summary",
 		Short: "Show cost summary in terminal",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if limit <= 0 {
+				_ = cmd.Help()
+				return fmt.Errorf("limit must be greater than 0")
+			}
+			if _, ok := allowedGroupByOptions[groupBy]; !ok {
+				_ = cmd.Help()
+				return fmt.Errorf("invalid group-by value %q: supported options are service, account, region, and team", groupBy)
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSummary(dateRange, useDB, migrate, output, groupBy, limit, quiet, verbose)
 		},

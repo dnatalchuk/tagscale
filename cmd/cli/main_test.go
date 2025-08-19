@@ -87,7 +87,7 @@ func TestCLIOutputFormatValidation(t *testing.T) {
 	require.Contains(t, combined, "Usage:")
 }
 
-func TestCLIGroupByValidation(t *testing.T) {
+func TestSummaryGroupByValidation(t *testing.T) {
 	cli := NewCLI()
 	summaryCmd, _, err := cli.Find([]string{"summary"})
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestCLIGroupByValidation(t *testing.T) {
 	require.Contains(t, combined, "Usage:")
 }
 
-func TestCLILimitValidation(t *testing.T) {
+func TestSummaryLimitValidation(t *testing.T) {
 	cli := NewCLI()
 	summaryCmd, _, err := cli.Find([]string{"summary"})
 	require.NoError(t, err)
