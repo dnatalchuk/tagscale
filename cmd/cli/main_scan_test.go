@@ -17,6 +17,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"tagscale/internal/config"
 	"tagscale/internal/models"
 	"tagscale/internal/services"
 )
@@ -68,7 +69,9 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 
-	require.NoError(t, runScan("1", true, true, "", "", "table", 30, true, false))
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.NoError(t, runScan(cfg, "1", true, true, "", "", "table", 30, true, false))
 
 	w.Close()
 	os.Stdout = old

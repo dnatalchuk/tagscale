@@ -192,7 +192,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(dateRange, useDB, migrate, region, profile, output, timeout, quiet, verbose)
+			return runScan(cfg, dateRange, useDB, migrate, region, profile, output, timeout, quiet, verbose)
 		},
 	}
 
@@ -215,7 +215,7 @@ func NewCLI() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSummary(dateRange, useDB, migrate, output, groupBy, limit, quiet, verbose)
+			return runSummary(cfg, dateRange, useDB, migrate, output, groupBy, limit, quiet, verbose)
 		},
 	}
 
@@ -230,7 +230,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(rangeStr string, useDB, migrate bool, region, profile, output string, timeout int, quiet, verbose bool) error {
+func runScan(cfg *config.Config, rangeStr string, useDB, migrate bool, region, profile, output string, timeout int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -242,12 +242,6 @@ func runScan(rangeStr string, useDB, migrate bool, region, profile, output strin
 		} else {
 			fmt.Println("🔍 Running TagScale scan...")
 		}
-	}
-
-	// Load config
-	cfg, err := config.Load()
-	if err != nil {
-		return errorf(output, "Failed to load config: %w", err)
 	}
 
 	if timeout <= 0 {
@@ -338,7 +332,7 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, limit int, quiet, verbose bool) error {
+func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, output, groupBy string, limit int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -350,11 +344,6 @@ func runSummary(rangeStr string, useDB, migrate bool, output, groupBy string, li
 		} else {
 			fmt.Println("📊 Running TagScale summary...")
 		}
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		return errorf(output, "Failed to load config: %w", err)
 	}
 
 	db, err := initDB(useDB, migrate, cfg)
