@@ -43,7 +43,7 @@ func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
 
-func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, save bool) (AnalysisResult, error) {
+func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, groupBy []string, save bool) (AnalysisResult, error) {
 	var result AnalysisResult
 	// Get total cost
 	var totalCostDB sql.NullFloat64
@@ -84,61 +84,58 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, s
 		topServices []models.CostSummary
 		topAccounts []models.CostSummary
 		topRegions  []models.CostSummary
-		errSvc      error
-		errAcct     error
-		errReg      error
+		costByTeam  []models.CostSummary
 	)
 
 	g := new(errgroup.Group)
 
-	g.Go(func() error {
-		var err error
-		topServices, err = s.GetTopCosts(limit, "service", startDate, endDate)
-		if err != nil {
-			errSvc = fmt.Errorf("failed to get top services: %w", err)
-			return errSvc
-		}
-		return nil
-	})
-
-	g.Go(func() error {
-		var err error
-		topAccounts, err = s.GetTopCosts(limit, "account", startDate, endDate)
-		if err != nil {
-			errAcct = fmt.Errorf("failed to get top accounts: %w", err)
-			return errAcct
-		}
-		return nil
-	})
-
-	g.Go(func() error {
-		var err error
-		topRegions, err = s.GetTopCosts(limit, "region", startDate, endDate)
-		if err != nil {
-			errReg = fmt.Errorf("failed to get top regions: %w", err)
-			return errReg
-		}
-		return nil
-	})
-
-	if err := g.Wait(); err != nil {
-		switch {
-		case errSvc != nil:
-			return result, errSvc
-		case errAcct != nil:
-			return result, errAcct
-		case errReg != nil:
-			return result, errReg
-		default:
-			return result, err
+	for _, gb := range groupBy {
+		gb := gb // capture loop variable
+		switch gb {
+		case "service", "account", "region":
+			g.Go(func() error {
+				top, err := s.GetTopCosts(limit, gb, startDate, endDate)
+				if err != nil {
+					var label string
+					switch gb {
+					case "service":
+						label = "services"
+					case "account":
+						label = "accounts"
+					case "region":
+						label = "regions"
+					}
+					return fmt.Errorf("failed to get top %s: %w", label, err)
+				}
+				switch gb {
+				case "service":
+					topServices = top
+				case "account":
+					topAccounts = top
+				case "region":
+					topRegions = top
+				}
+				return nil
+			})
+		case "team":
+			// handled after waiting
 		}
 	}
 
-	// Infer team ownership
-	costByTeam := s.InferTeamOwnership(startDate, endDate)
-	sort.Slice(costByTeam, func(i, j int) bool { return costByTeam[i].TotalCost > costByTeam[j].TotalCost })
-	if len(costByTeam) > limit {
-		costByTeam = costByTeam[:limit]
+	if err := g.Wait(); err != nil {
+		return result, err
+	}
+
+	// Infer team ownership if requested
+	for _, gb := range groupBy {
+		if gb == "team" {
+			costByTeam = s.InferTeamOwnership(startDate, endDate)
+			sort.Slice(costByTeam, func(i, j int) bool { return costByTeam[i].TotalCost > costByTeam[j].TotalCost })
+			if len(costByTeam) > limit {
+				costByTeam = costByTeam[:limit]
+			}
+			break
+		}
 	}
 
 	// Generate insights
