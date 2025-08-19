@@ -192,7 +192,7 @@ func TestRunAnalysisHonorsRange(t *testing.T) {
 	require.NoError(t, db.Create(&recs).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err := svc.RunAnalysis(5, now.AddDate(0, 0, -7), now, true)
+	_, err := svc.RunAnalysis(5, now.AddDate(0, 0, -7), now, []string{"service", "account", "region", "team"}, true)
 	require.NoError(t, err)
 
 	var analysis models.CostAnalysis
@@ -208,7 +208,7 @@ func TestRunAnalysisSkipSave(t *testing.T) {
 	require.NoError(t, db.Create(&rec).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, false)
+	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.NoError(t, err)
 
 	var count int64
@@ -225,7 +225,7 @@ func TestRunAnalysisReturnsErrorWhenTotalCostScanFails(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date) VALUES (?)`, now).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, false)
+	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get total cost")
 }
@@ -239,7 +239,7 @@ func TestRunAnalysisReturnsErrorWhenUntaggedCostScanFails(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date, cost) VALUES (?, 1)`, now).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, false)
+	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get untagged cost")
 }
@@ -253,7 +253,7 @@ func TestRunAnalysisReturnsErrorWhenGetTopCostsFails(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date, cost, tags) VALUES (?, ?, '{}')`, now, 1).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), true)
+	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service"}, true)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get top services")
 }
@@ -266,7 +266,7 @@ func TestRunAnalysisReturnsErrorWhenMarshalFails(t *testing.T) {
 	require.NoError(t, db.Create(&rec).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, true)
+	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, true)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "marshal top services")
 }
@@ -281,15 +281,11 @@ func (f *fakeAnalysisService) GetTopCosts(limit int, groupBy string, startDate, 
 	return []models.CostSummary{}, nil
 }
 
-func (f *fakeAnalysisService) RunAnalysisSequential(limit int, startDate, endDate time.Time, save bool) (services.AnalysisResult, error) {
-	if _, err := f.GetTopCosts(limit, "service", startDate, endDate); err != nil {
-		return services.AnalysisResult{}, err
-	}
-	if _, err := f.GetTopCosts(limit, "account", startDate, endDate); err != nil {
-		return services.AnalysisResult{}, err
-	}
-	if _, err := f.GetTopCosts(limit, "region", startDate, endDate); err != nil {
-		return services.AnalysisResult{}, err
+func (f *fakeAnalysisService) RunAnalysisSequential(limit int, startDate, endDate time.Time, groupBy []string, save bool) (services.AnalysisResult, error) {
+	for _, gb := range groupBy {
+		if _, err := f.GetTopCosts(limit, gb, startDate, endDate); err != nil {
+			return services.AnalysisResult{}, err
+		}
 	}
 	// Saving is omitted for simplicity in tests/benchmarks.
 	return services.AnalysisResult{}, nil
@@ -306,7 +302,7 @@ func TestRunAnalysisFetchesTopCostsConcurrently(t *testing.T) {
 	fake := &fakeAnalysisService{AnalysisService: baseSvc, delay: 100 * time.Millisecond}
 
 	start := time.Now()
-	_, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), false)
+	_, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false)
 	require.NoError(t, err)
 	elapsed := time.Since(start)
 
@@ -334,7 +330,7 @@ func BenchmarkRunAnalysisConcurrent(b *testing.B) {
 
 	b.Run("sequential", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err := fake.RunAnalysisSequential(5, now.Add(-time.Hour), now.Add(time.Hour), false); err != nil {
+			if _, err := fake.RunAnalysisSequential(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false); err != nil {
 				b.Fatalf("sequential run: %v", err)
 			}
 		}
@@ -342,7 +338,7 @@ func BenchmarkRunAnalysisConcurrent(b *testing.B) {
 
 	b.Run("concurrent", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), false); err != nil {
+			if _, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false); err != nil {
 				b.Fatalf("concurrent run: %v", err)
 			}
 		}

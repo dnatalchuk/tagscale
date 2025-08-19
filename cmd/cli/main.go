@@ -358,7 +358,7 @@ func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, output
 
 	analysisService := services.NewAnalysisService(db)
 
-	result, err := analysisService.RunAnalysis(limit, startDate, endDate, false)
+	result, err := analysisService.RunAnalysis(limit, startDate, endDate, []string{groupBy}, false)
 	if err != nil {
 		return errorf(output, "Analysis failed: %w", err)
 	}
