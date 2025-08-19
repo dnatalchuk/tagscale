@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"tagscale/internal/models"
@@ -216,41 +217,110 @@ func (s *AnalysisService) GetTopCosts(limit int, groupBy string, startDate, endD
 }
 
 func (s *AnalysisService) InferTeamOwnership(startDate, endDate time.Time) []models.CostSummary {
-	var costRecords []models.CostRecord
-	s.db.Where("date >= ? AND date <= ?", startDate, endDate).Find(&costRecords)
-
-	teamCosts := make(map[string]float64)
-
-	// Get team mappings
+	// Get team mappings ordered by priority so higher priority mappings win
 	var teamMappings []models.TeamMapping
 	s.db.Order("priority DESC").Find(&teamMappings)
 
-	// Precompile regex patterns for mappings that require it
+	var simpleIDs []uint
 	compiled := make([]compiledTeamMapping, 0, len(teamMappings))
 	for _, m := range teamMappings {
 		cm := compiledTeamMapping{TeamMapping: m}
-		if m.PatternType == "service" || m.PatternType == "resource_name" {
+		switch m.PatternType {
+		case "service":
+			if isRegex(m.Pattern) {
+				if re, err := regexp.Compile(m.Pattern); err == nil {
+					cm.pattern = re
+				}
+				compiled = append(compiled, cm)
+			} else {
+				simpleIDs = append(simpleIDs, m.ID)
+			}
+		case "resource_name":
 			if re, err := regexp.Compile(m.Pattern); err == nil {
 				cm.pattern = re
 			}
+			compiled = append(compiled, cm)
+		case "tag":
+			simpleIDs = append(simpleIDs, m.ID)
 		}
-		compiled = append(compiled, cm)
 	}
 
-	for _, record := range costRecords {
-		team := s.inferTeamFromRecord(record, compiled)
-		teamCosts[team] += record.Cost
+	teamCosts := make(map[string]float64)
+
+	// Aggregate costs using SQL for simple mappings
+	if len(simpleIDs) > 0 {
+		query := `
+SELECT
+    COALESCE((
+        SELECT tm.team
+        FROM team_mappings tm
+        WHERE tm.id IN ? AND (
+            (tm.pattern_type = 'service' AND cr.service = tm.pattern) OR
+            (tm.pattern_type = 'tag' AND EXISTS (SELECT 1 FROM json_each(cr.tags) WHERE value = tm.pattern))
+        )
+        ORDER BY tm.priority DESC
+        LIMIT 1
+    ), 'unassigned') AS team,
+    SUM(cr.cost) AS total_cost
+FROM cost_records cr
+WHERE cr.date >= ? AND cr.date <= ?
+GROUP BY team`
+
+		var sqlResults []models.CostSummary
+		if err := s.db.Raw(query, simpleIDs, startDate, endDate).Scan(&sqlResults).Error; err == nil {
+			for _, r := range sqlResults {
+				teamCosts[r.Team] += r.TotalCost
+			}
+		}
+	} else {
+		// No simple mappings, calculate total cost for unassigned baseline
+		var total float64
+		s.db.Model(&models.CostRecord{}).
+			Where("date >= ? AND date <= ?", startDate, endDate).
+			Select("SUM(cost)").Scan(&total)
+		teamCosts["unassigned"] = total
+	}
+
+	// Process records that require in-memory evaluation
+	if len(compiled) > 0 {
+		var remaining []models.CostRecord
+		if len(simpleIDs) > 0 {
+			sub := `
+NOT EXISTS (
+    SELECT 1
+    FROM team_mappings tm
+    WHERE tm.id IN ? AND (
+        (tm.pattern_type = 'service' AND cost_records.service = tm.pattern) OR
+        (tm.pattern_type = 'tag' AND EXISTS (SELECT 1 FROM json_each(cost_records.tags) WHERE value = tm.pattern))
+    )
+)`
+			s.db.Where("date >= ? AND date <= ?", startDate, endDate).
+				Where(sub, simpleIDs).Find(&remaining)
+		} else {
+			s.db.Where("date >= ? AND date <= ?", startDate, endDate).Find(&remaining)
+		}
+
+		for _, record := range remaining {
+			team := s.inferTeamFromRecord(record, compiled)
+			teamCosts[team] += record.Cost
+			teamCosts["unassigned"] -= record.Cost
+		}
 	}
 
 	var results []models.CostSummary
 	for team, cost := range teamCosts {
-		results = append(results, models.CostSummary{
-			Team:      team,
-			TotalCost: cost,
-		})
+		if cost == 0 {
+			continue
+		}
+		results = append(results, models.CostSummary{Team: team, TotalCost: cost})
 	}
 
 	return results
+}
+
+// isRegex reports whether the pattern contains regex metacharacters.
+func isRegex(p string) bool {
+	return strings.ContainsAny(p, ".*[]^$+?|()")
 }
 
 func (s *AnalysisService) inferTeamFromRecord(record models.CostRecord, mappings []compiledTeamMapping) string {

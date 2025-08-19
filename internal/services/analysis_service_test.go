@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +107,39 @@ func TestInferTeamOwnershipTagPartial(t *testing.T) {
 
 	require.NotContains(t, costs, "plat")
 	require.InDelta(t, 1.0, costs["unassigned"], 0.001)
+}
+
+func TestInferTeamOwnershipLargeDataset(t *testing.T) {
+	db := setupAnalysisDB(t)
+
+	now := time.Now()
+	var recs []models.CostRecord
+	for i := 0; i < 20000; i++ {
+		recs = append(recs, models.CostRecord{Date: now, Service: fmt.Sprintf("svc-%d", i%5), Cost: 1})
+	}
+	require.NoError(t, db.CreateInBatches(recs, 500).Error)
+
+	mapping := models.TeamMapping{Pattern: "svc-1", PatternType: "service", Team: "team1"}
+	require.NoError(t, db.Create(&mapping).Error)
+
+	recs = nil
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+
+	svc := services.NewAnalysisService(db)
+	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
+
+	runtime.GC()
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+
+	costs := make(map[string]float64)
+	for _, r := range results {
+		costs[r.Team] = r.TotalCost
+	}
+	require.InDelta(t, 4000.0, costs["team1"], 0.001)
+	require.Less(t, after.Alloc-before.Alloc, uint64(30*1024*1024))
 }
 
 func BenchmarkInferTeamOwnership(b *testing.B) {
