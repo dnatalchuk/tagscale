@@ -212,6 +212,17 @@ func TestCLIQuietVerboseConflict(t *testing.T) {
 	require.Contains(t, err.Error(), "cannot use --quiet and --verbose together")
 }
 
+func TestCLIScanInvalidTimeout(t *testing.T) {
+	cases := []string{"0", "-5"}
+	for _, tt := range cases {
+		cli := NewCLI()
+		cli.SetArgs([]string{"scan", "--timeout", tt, "--quiet"})
+		err := cli.Execute()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "timeout must be greater than 0")
+	}
+}
+
 func TestCLIVersion(t *testing.T) {
 	cases := []struct {
 		args     []string

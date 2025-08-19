@@ -126,7 +126,7 @@ print a summary for the same period:
 ./bin/tagscale-cli summary --range 7
 ```
 
-You can override the AWS region and shared config profile, adjust the AWS request timeout, or emit JSON instead of
+You can override the AWS region and shared config profile, adjust the AWS request timeout (must be greater than 0), or emit JSON instead of
 the default table output (supported values: `table`, `json`):
 
 ```bash
@@ -170,7 +170,7 @@ Insights:
 - `DATABASE_URL` (optional): PostgreSQL connection string used with `--db` or when running the server
 - `AWS_REGION`: AWS region for Cost Explorer
 - `AWS_PROFILE` (optional): Shared config profile name used for AWS credentials
-- `AWS_REQUEST_TIMEOUT`: Timeout in seconds for AWS API calls (default used by the CLI `--timeout` flag)
+- `AWS_REQUEST_TIMEOUT`: Timeout in seconds for AWS API calls (default used by the CLI `--timeout` flag; must be > 0)
 - `SLACK_TOKEN`: Slack bot token for notifications
 - `EMAIL_SMTP_*`: Email configuration for notifications
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
