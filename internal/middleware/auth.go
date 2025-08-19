@@ -11,11 +11,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthMiddleware validates the Authorization header against a static API key.
+// AuthMiddleware validates the Authorization header against a set of static API keys.
 // The Bearer scheme is matched in a case-insensitive manner.
 // Unauthorized responses include a `WWW-Authenticate: Bearer` header.
-func AuthMiddleware(apiKey string, allowNoAuth bool) (gin.HandlerFunc, error) {
-	if apiKey == "" {
+func AuthMiddleware(apiKeys []string, allowNoAuth bool) (gin.HandlerFunc, error) {
+	if len(apiKeys) == 0 {
 		if allowNoAuth {
 			log.Println("Warning: starting without API key; authentication disabled")
 			return func(c *gin.Context) { c.Next() }, nil
@@ -44,8 +44,14 @@ func AuthMiddleware(apiKey string, allowNoAuth bool) (gin.HandlerFunc, error) {
 		}
 
 		token := parts[1]
-		// Use constant time comparison to mitigate timing attacks on API key checks.
-		if subtle.ConstantTimeCompare([]byte(token), []byte(apiKey)) != 1 {
+		// Check token against all configured keys using constant time comparison.
+		match := false
+		for _, k := range apiKeys {
+			if subtle.ConstantTimeCompare([]byte(token), []byte(k)) == 1 {
+				match = true
+			}
+		}
+		if !match {
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
 			c.Abort()

@@ -19,10 +19,11 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 		header   string
 		expected int
 	}{
-		{"valid token", "Bearer secret", http.StatusOK},
-		{"valid token with spaces", "  Bearer    secret  ", http.StatusOK},
-		{"lowercase bearer", "bearer secret", http.StatusOK},
-		{"uppercase bearer", "BEARER secret", http.StatusOK},
+		{"first key", "Bearer secret1", http.StatusOK},
+		{"second key", "Bearer secret2", http.StatusOK},
+		{"valid token with spaces", "  Bearer    secret1  ", http.StatusOK},
+		{"lowercase bearer", "bearer secret1", http.StatusOK},
+		{"uppercase bearer", "BEARER secret1", http.StatusOK},
 		{"invalid token", "Bearer wrong", http.StatusUnauthorized},
 		{"missing header", "", http.StatusUnauthorized},
 	}
@@ -30,7 +31,7 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			h, err := middleware.AuthMiddleware("secret", false)
+			h, err := middleware.AuthMiddleware([]string{"secret1", "secret2"}, false)
 			require.NoError(t, err)
 			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -54,13 +55,13 @@ func TestAuthMiddlewareNoAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("error when not allowed", func(t *testing.T) {
-		_, err := middleware.AuthMiddleware("", false)
+		_, err := middleware.AuthMiddleware([]string{}, false)
 		require.Error(t, err)
 	})
 
 	t.Run("allow when explicitly permitted", func(t *testing.T) {
 		router := gin.New()
-		h, err := middleware.AuthMiddleware("", true)
+		h, err := middleware.AuthMiddleware([]string{}, true)
 		require.NoError(t, err)
 		router.Use(h)
 		router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
