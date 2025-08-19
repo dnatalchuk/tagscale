@@ -32,7 +32,7 @@ func (h *AnalysisHandler) RunAnalysis(c *gin.Context) {
 	go func() {
 		end := time.Now()
 		start := end.AddDate(0, 0, -30)
-		if err := h.analysisService.RunAnalysis(5, start, end); err != nil {
+		if _, err := h.analysisService.RunAnalysis(5, start, end, true); err != nil {
 			log.Printf("analysis run failed: %v", err)
 		}
 	}()

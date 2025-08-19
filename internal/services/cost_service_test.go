@@ -202,13 +202,18 @@ func TestRunAnalysis(t *testing.T) {
 	require.NoError(t, db.Create(&recs).Error)
 
 	svc := services.NewAnalysisService(db)
-	require.NoError(t, svc.RunAnalysis(5, yesterday, today))
+	res, err := svc.RunAnalysis(5, yesterday, today, true)
+	require.NoError(t, err)
 
 	var analysis models.CostAnalysis
 	require.NoError(t, db.First(&analysis).Error)
 	require.InDelta(t, 40.0, analysis.TotalCost, 0.001)
 	require.InDelta(t, 40.0, analysis.UntaggedCost, 0.001)
 	require.InDelta(t, 100.0, analysis.UntaggedPercent, 0.001)
+
+	require.InDelta(t, 40.0, res.TotalCost, 0.001)
+	require.InDelta(t, 40.0, res.UntaggedCost, 0.001)
+	require.InDelta(t, 100.0, res.UntaggedPercent, 0.001)
 
 	var top []models.CostSummary
 	require.NoError(t, json.Unmarshal([]byte(analysis.TopServices), &top))
