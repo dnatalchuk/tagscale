@@ -38,8 +38,6 @@ func (m *mockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate 
 func TestRunScanInsertsCostRecords(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
-	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
-	defer os.Unsetenv("DATABASE_URL")
 
 	output := &costexplorer.GetCostAndUsageOutput{
 		ResultsByTime: []types.ResultByTime{
@@ -71,7 +69,7 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runScan(context.Background(), cfg, "1", true, true, "", "", "table", 30, true, false))
+	require.NoError(t, runScan(context.Background(), cfg, "1", false, true, dbPath, "", "", "table", 30, true, false))
 
 	w.Close()
 	os.Stdout = old
