@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -182,7 +183,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(cmd.Context(), cfg, dateRange, useDB, migrate, dbPath, region, profile, output, timeout, quiet, verbose)
+			return runScan(cmd.Context(), cmd, cfg, dateRange, useDB, migrate, dbPath, region, profile, output, timeout, quiet, verbose)
 		},
 	}
 
@@ -205,7 +206,7 @@ func NewCLI() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSummary(cfg, dateRange, useDB, migrate, dbPath, output, groupBy, limit, quiet, verbose)
+			return runSummary(cmd, cfg, dateRange, useDB, migrate, dbPath, output, groupBy, limit, quiet, verbose)
 		},
 	}
 
@@ -220,7 +221,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, region, profile, output string, timeout int, quiet, verbose bool) error {
+func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, region, profile, output string, timeout int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -228,9 +229,9 @@ func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, mi
 
 	if output == "table" && !quiet {
 		if verbose {
-			fmt.Printf("🔍 Running TagScale scan from %s to %s...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+			fmt.Fprintf(cmd.OutOrStdout(), "🔍 Running TagScale scan from %s to %s...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 		} else {
-			fmt.Println("🔍 Running TagScale scan...")
+			fmt.Fprintln(cmd.OutOrStdout(), "🔍 Running TagScale scan...")
 		}
 	}
 
@@ -272,12 +273,12 @@ func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, mi
 	if quiet && output != "json" {
 		// Suppress all non-JSON output when in quiet mode.
 	} else if output == "json" {
-		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"message": "cost data collected"})
+		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"message": "cost data collected"})
 	} else {
 		if verbose {
-			fmt.Printf("✅ Cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+			fmt.Fprintf(cmd.OutOrStdout(), "✅ Cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 		} else {
-			fmt.Println("✅ Cost data collected.")
+			fmt.Fprintln(cmd.OutOrStdout(), "✅ Cost data collected.")
 		}
 	}
 
@@ -321,7 +322,7 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output, groupBy string, limit int, quiet, verbose bool) error {
+func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output, groupBy string, limit int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -329,9 +330,9 @@ func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath
 
 	if output == "table" && !quiet {
 		if verbose {
-			fmt.Printf("📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), groupBy, limit)
+			fmt.Fprintf(cmd.OutOrStdout(), "📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), groupBy, limit)
 		} else {
-			fmt.Println("📊 Running TagScale summary...")
+			fmt.Fprintln(cmd.OutOrStdout(), "📊 Running TagScale summary...")
 		}
 	}
 
@@ -354,24 +355,24 @@ func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath
 	}
 
 	if output == "json" {
-		_ = json.NewEncoder(os.Stdout).Encode(result)
+		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 	} else {
 		if !quiet && verbose {
-			fmt.Println("✅ Analysis complete. Displaying results.")
+			fmt.Fprintln(cmd.OutOrStdout(), "✅ Analysis complete. Displaying results.")
 		}
-		printAnalysis(result, groupBy, quiet, verbose)
+		printAnalysis(cmd.OutOrStdout(), result, groupBy, quiet, verbose)
 	}
 
 	return nil
 }
 
-func printAnalysis(result services.AnalysisResult, groupBy string, quiet, verbose bool) {
+func printAnalysis(w io.Writer, result services.AnalysisResult, groupBy string, quiet, verbose bool) {
 	if quiet {
 		return
 	}
 
-	fmt.Printf("\n💰 Total Cost: $%.2f\n", result.TotalCost)
-	fmt.Printf("🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
+	fmt.Fprintf(w, "\n💰 Total Cost: $%.2f\n", result.TotalCost)
+	fmt.Fprintf(w, "🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
 
 	var (
 		items []models.CostSummary
@@ -392,7 +393,7 @@ func printAnalysis(result services.AnalysisResult, groupBy string, quiet, verbos
 		title = "Top Services"
 	}
 
-	fmt.Printf("\n%s:\n", title)
+	fmt.Fprintf(w, "\n%s:\n", title)
 	for _, s := range items {
 		label := s.Service
 		switch groupBy {
@@ -404,16 +405,16 @@ func printAnalysis(result services.AnalysisResult, groupBy string, quiet, verbos
 			label = s.Team
 		}
 		if verbose {
-			fmt.Printf(" • %-30s $%.2f (%.1f%%)\n", label, s.TotalCost, s.Percentage)
+			fmt.Fprintf(w, " • %-30s $%.2f (%.1f%%)\n", label, s.TotalCost, s.Percentage)
 		} else {
-			fmt.Printf(" • %-30s $%.2f\n", label, s.TotalCost)
+			fmt.Fprintf(w, " • %-30s $%.2f\n", label, s.TotalCost)
 		}
 	}
 
 	if len(result.Insights) > 0 {
-		fmt.Println("\nInsights:")
+		fmt.Fprintln(w, "\nInsights:")
 		for _, insight := range result.Insights {
-			fmt.Printf(" • %s\n", insight)
+			fmt.Fprintf(w, " • %s\n", insight)
 		}
 	}
 }

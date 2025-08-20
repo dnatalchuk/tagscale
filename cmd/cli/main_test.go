@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +33,8 @@ func TestRunSummaryWithDBPath(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runSummary(cfg, "30", false, true, dbPath, "table", "service", 5, true, false))
+	cmd := &cobra.Command{}
+	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", "service", 5, true, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -51,7 +51,8 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runSummary(cfg, "30", true, true, "", "table", "service", 5, true, false))
+	cmd := &cobra.Command{}
+	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -68,7 +69,8 @@ func TestRunSummaryClosesDB(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runSummary(cfg, "30", true, true, "", "table", "service", 5, true, false))
+	cmd := &cobra.Command{}
+	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -90,19 +92,15 @@ func TestRunSummaryQuietModeNoOutput(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
 
-	err = runSummary(cfg, "30", true, true, "", "table", "service", 5, true, false)
-	w.Close()
-	os.Stdout = old
+	err = runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false)
 	require.NoError(t, err)
 
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.Empty(t, strings.TrimSpace(string(out)))
+	require.Empty(t, strings.TrimSpace(buf.String()))
 }
 
 func TestRunScanQuietModeNoOutput(t *testing.T) {
@@ -121,19 +119,15 @@ func TestRunScanQuietModeNoOutput(t *testing.T) {
 	}
 	defer func() { awsClientFactory = origFactory }()
 
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
 
-	err = runScan(context.Background(), cfg, "1", true, true, "", "", "", "table", 30, true, false)
-	w.Close()
-	os.Stdout = old
+	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, true, false)
 	require.NoError(t, err)
 
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.Empty(t, strings.TrimSpace(string(out)))
+	require.Empty(t, strings.TrimSpace(buf.String()))
 }
 
 func TestCLIOutputFormatValidation(t *testing.T) {
@@ -281,18 +275,14 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(fmt.Sprintf("%s-%d", tt.group, tt.limit), func(t *testing.T) {
-			r, w, err := os.Pipe()
-			require.NoError(t, err)
-			old := os.Stdout
-			os.Stdout = w
+			var buf bytes.Buffer
+			cmd := &cobra.Command{}
+			cmd.SetOut(&buf)
+			cmd.SetErr(&buf)
 
-			require.NoError(t, runSummary(cfg, "30", true, false, "", "table", tt.group, tt.limit, false, false))
+			require.NoError(t, runSummary(cmd, cfg, "30", true, false, "", "table", tt.group, tt.limit, false, false))
 
-			w.Close()
-			os.Stdout = old
-			out, err := io.ReadAll(r)
-			require.NoError(t, err)
-			output := string(out)
+			output := buf.String()
 
 			for _, inc := range tt.include {
 				require.Contains(t, output, inc)
@@ -324,18 +314,14 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
 
-	require.NoError(t, runSummary(cfg, "7", true, false, "", "table", "service", 5, false, false))
+	require.NoError(t, runSummary(cmd, cfg, "7", true, false, "", "table", "service", 5, false, false))
 
-	w.Close()
-	os.Stdout = old
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	output := string(out)
+	output := buf.String()
 
 	require.Contains(t, output, "InRange")
 	require.NotContains(t, output, "OutRange")

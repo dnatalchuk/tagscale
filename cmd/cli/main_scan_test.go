@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer/types"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -62,20 +63,16 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	}
 	defer func() { awsClientFactory = origFactory }()
 
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runScan(context.Background(), cfg, "1", false, true, dbPath, "", "", "table", 30, true, false))
+	require.NoError(t, runScan(context.Background(), cmd, cfg, "1", false, true, dbPath, "", "", "table", 30, true, false))
 
-	w.Close()
-	os.Stdout = old
-	out, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.Empty(t, strings.TrimSpace(string(out)))
+	require.Empty(t, strings.TrimSpace(buf.String()))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
