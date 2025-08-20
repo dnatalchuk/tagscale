@@ -97,24 +97,23 @@ Check the installed version:
 ./bin/tagscale-cli version --output json
 ```
 
-By default the CLI stores all data in-memory. Use the `--db` flag to persist results
-to the database configured by `DATABASE_URL`. When the built-in SQLite database is used,
-TagScale places it in `~/.tagscale/cli.db`. The `~/.tagscale` directory is created with
-`700` permissions so only your user can access its contents. Use `--migrate` to run any
-pending database migrations. Migrations are skipped by default for faster startup.
+By default the CLI stores all data in an in-memory SQLite database. Use the `--db-path`
+flag to persist results to a local SQLite file, or the `--db` flag to use the database
+configured by `DATABASE_URL`. Use `--migrate` to run any pending database migrations.
+Migrations are skipped by default for faster startup.
 
 Use `--quiet` (`-q`) to suppress all non-JSON output, including progress messages and results, or `--verbose` (`-v`) for more detailed output. These flags are mutually exclusive.
 
 To apply migrations explicitly, include `--migrate` with your command, for example:
 
 ```bash
-./bin/tagscale-cli scan --db --migrate
+./bin/tagscale-cli scan --db-path /tmp/tagscale.db --migrate
 ```
 
-If `scan` and `summary` are run as separate commands without `--db`, each
-invocation starts with a fresh in-memory database and the scan results are lost
-before the summary runs. Use `--db` or run both commands in a single session to
-retain the collected data.
+If `scan` and `summary` are run as separate commands without `--db` or `--db-path`,
+each invocation starts with a fresh in-memory database and the scan results are lost
+before the summary runs. Use `--db`, `--db-path`, or run both commands in a single
+session to retain the collected data.
 
 ### Example: In-memory scan and summary
 

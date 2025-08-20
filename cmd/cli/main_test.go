@@ -28,20 +28,19 @@ func (m *mockQuietAWSClient) GetCostAndUsage(ctx context.Context, startDate, end
 	return &costexplorer.GetCostAndUsageOutput{}, nil
 }
 
-func TestCliDBPathPermissions(t *testing.T) {
-	tmp := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmp)
-	defer os.Setenv("HOME", oldHome)
+func TestRunSummaryWithDBPath(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
 
-	path, err := cliDBPath()
+	cfg, err := config.Load()
 	require.NoError(t, err)
-	expected := filepath.Join(tmp, ".tagscale", "cli.db")
-	require.Equal(t, expected, path)
+	require.NoError(t, runSummary(cfg, "30", false, true, dbPath, "table", "service", 5, true, false))
 
-	info, err := os.Stat(filepath.Dir(path))
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+	require.True(t, db.Migrator().HasTable(&models.CostRecord{}))
+	require.True(t, db.Migrator().HasTable(&models.CostAnalysis{}))
+	require.True(t, db.Migrator().HasTable(&models.TeamMapping{}))
 }
 
 func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
@@ -52,7 +51,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runSummary(cfg, "30", true, true, "table", "service", 5, true, false))
+	require.NoError(t, runSummary(cfg, "30", true, true, "", "table", "service", 5, true, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -69,7 +68,7 @@ func TestRunSummaryClosesDB(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runSummary(cfg, "30", true, true, "table", "service", 5, true, false))
+	require.NoError(t, runSummary(cfg, "30", true, true, "", "table", "service", 5, true, false))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -96,7 +95,7 @@ func TestRunSummaryQuietModeNoOutput(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 
-	err = runSummary(cfg, "30", true, true, "table", "service", 5, true, false)
+	err = runSummary(cfg, "30", true, true, "", "table", "service", 5, true, false)
 	w.Close()
 	os.Stdout = old
 	require.NoError(t, err)
@@ -127,7 +126,7 @@ func TestRunScanQuietModeNoOutput(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 
-	err = runScan(context.Background(), cfg, "1", true, true, "", "", "table", 30, true, false)
+	err = runScan(context.Background(), cfg, "1", true, true, "", "", "", "table", 30, true, false)
 	w.Close()
 	os.Stdout = old
 	require.NoError(t, err)
@@ -287,7 +286,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			old := os.Stdout
 			os.Stdout = w
 
-			require.NoError(t, runSummary(cfg, "30", true, false, "table", tt.group, tt.limit, false, false))
+			require.NoError(t, runSummary(cfg, "30", true, false, "", "table", tt.group, tt.limit, false, false))
 
 			w.Close()
 			os.Stdout = old
@@ -330,7 +329,7 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 
-	require.NoError(t, runSummary(cfg, "7", true, false, "table", "service", 5, false, false))
+	require.NoError(t, runSummary(cfg, "7", true, false, "", "table", "service", 5, false, false))
 
 	w.Close()
 	os.Stdout = old

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -48,19 +47,7 @@ var allowedGroupByOptions = map[string]struct{}{
 	"team":    {},
 }
 
-func cliDBPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	dir := filepath.Join(home, ".tagscale")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "cli.db"), nil
-}
-
-func initDB(useDB, migrate bool, cfg *config.Config) (*gorm.DB, error) {
+func initDB(useDB, migrate bool, dbPath string, cfg *config.Config) (*gorm.DB, error) {
 	var (
 		db  *gorm.DB
 		err error
@@ -70,12 +57,13 @@ func initDB(useDB, migrate bool, cfg *config.Config) (*gorm.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		path, err := cliDBPath()
+	} else if dbPath != "" {
+		db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 		if err != nil {
 			return nil, err
 		}
-		db, err = gorm.Open(sqlite.Open(path), &gorm.Config{})
+	} else {
+		db, err = gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 		if err != nil {
 			return nil, err
 		}
@@ -128,6 +116,7 @@ func NewCLI() *cobra.Command {
 		dateRange string
 		useDB     bool
 		migrate   bool
+		dbPath    string
 		region    string
 		profile   string
 		output    string
@@ -168,6 +157,7 @@ func NewCLI() *cobra.Command {
 
 	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
 	rootCmd.PersistentFlags().BoolVar(&migrate, "migrate", false, "Run database migrations on startup")
+	rootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "Path to SQLite DB file for persistence")
 	rootCmd.PersistentFlags().StringVar(&region, "region", os.Getenv("AWS_REGION"), "AWS region (default from AWS_REGION)")
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
 	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
@@ -192,7 +182,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(cmd.Context(), cfg, dateRange, useDB, migrate, region, profile, output, timeout, quiet, verbose)
+			return runScan(cmd.Context(), cfg, dateRange, useDB, migrate, dbPath, region, profile, output, timeout, quiet, verbose)
 		},
 	}
 
@@ -215,7 +205,7 @@ func NewCLI() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSummary(cfg, dateRange, useDB, migrate, output, groupBy, limit, quiet, verbose)
+			return runSummary(cfg, dateRange, useDB, migrate, dbPath, output, groupBy, limit, quiet, verbose)
 		},
 	}
 
@@ -230,7 +220,7 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, migrate bool, region, profile, output string, timeout int, quiet, verbose bool) error {
+func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, region, profile, output string, timeout int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -248,7 +238,7 @@ func runScan(ctx context.Context, cfg *config.Config, rangeStr string, useDB, mi
 		return errorf(output, "timeout must be greater than 0")
 	}
 
-	db, err := initDB(useDB, migrate, cfg)
+	db, err := initDB(useDB, migrate, dbPath, cfg)
 	if err != nil {
 		return errorf(output, "Failed to initialize DB: %w", err)
 	}
@@ -331,7 +321,7 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, output, groupBy string, limit int, quiet, verbose bool) error {
+func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output, groupBy string, limit int, quiet, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -345,7 +335,7 @@ func runSummary(cfg *config.Config, rangeStr string, useDB, migrate bool, output
 		}
 	}
 
-	db, err := initDB(useDB, migrate, cfg)
+	db, err := initDB(useDB, migrate, dbPath, cfg)
 	if err != nil {
 		return errorf(output, "Failed to initialize DB: %w", err)
 	}
