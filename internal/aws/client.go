@@ -11,8 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer/types"
 )
 
+type costExplorerAPI interface {
+	GetCostAndUsage(context.Context, *costexplorer.GetCostAndUsageInput, ...func(*costexplorer.Options)) (*costexplorer.GetCostAndUsageOutput, error)
+	GetRightsizingRecommendation(context.Context, *costexplorer.GetRightsizingRecommendationInput, ...func(*costexplorer.Options)) (*costexplorer.GetRightsizingRecommendationOutput, error)
+}
+
 type Client struct {
-	costExplorer *costexplorer.Client
+	costExplorer costExplorerAPI
 }
 
 // NewClient creates an AWS Cost Explorer client with the provided region and
@@ -47,7 +52,7 @@ func (c *Client) GetCostAndUsage(ctx context.Context, startDate, endDate time.Ti
 			End:   aws.String(endDate.Format("2006-01-02")),
 		},
 		Granularity: types.GranularityDaily,
-		Metrics:     []string{"BlendedCost", "UnblendedCost"},
+		Metrics:     []string{"BlendedCost"}, // Only request needed metric for lower API overhead
 		GroupBy: []types.GroupDefinition{
 			{
 				Type: types.GroupDefinitionTypeDimension,
