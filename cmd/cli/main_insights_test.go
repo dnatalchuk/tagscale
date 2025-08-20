@@ -1,8 +1,7 @@
 package main
 
 import (
-	"io"
-	"os"
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,20 +21,11 @@ func TestPrintAnalysisNoInsightsHeader(t *testing.T) {
 		Insights: []string{},
 	}
 
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
+	var buf bytes.Buffer
 
-	printAnalysis(result, "service", false, false)
+	printAnalysis(&buf, result, "service", false, false)
 
-	w.Close()
-	os.Stdout = old
-
-	out, err := io.ReadAll(r)
-	r.Close()
-	require.NoError(t, err)
-	output := string(out)
+	output := buf.String()
 
 	require.NotContains(t, output, "Insights:")
 }
