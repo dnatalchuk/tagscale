@@ -88,7 +88,7 @@ func (h *CostHandler) CollectCosts(c *gin.Context) {
 	startDate := endDate.AddDate(0, 0, -days)
 	timeout := time.Duration(h.config.AWSRequestTimeout) * time.Second
 
-	if err := h.costService.CollectCostData(c.Request.Context(), startDate, endDate, timeout); err != nil {
+	if err := h.costService.CollectCostData(c.Request.Context(), startDate, endDate, timeout, h.config.CostBatchSize); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

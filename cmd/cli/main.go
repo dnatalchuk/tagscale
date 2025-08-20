@@ -277,7 +277,7 @@ func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeS
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(ctx, startDate, endDate, time.Duration(timeout)*time.Second)
+	err = costService.CollectCostData(ctx, startDate, endDate, time.Duration(timeout)*time.Second, cfg.CostBatchSize)
 	if err != nil {
 		return errorf(output, "Cost data collection failed: %w", err)
 	}

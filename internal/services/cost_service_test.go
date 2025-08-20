@@ -117,7 +117,7 @@ func TestCollectCostData(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second)
+	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
 	require.NoError(t, err)
 
 	var recs []models.CostRecord
@@ -169,7 +169,7 @@ func TestCollectCostDataPagination(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second))
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100))
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
@@ -215,7 +215,7 @@ func TestCollectCostDataStreaming(t *testing.T) {
 	svc := services.NewCostService(mock, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second))
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100))
 
 	// Ensure first page records were written before requesting the second page
 	require.Greater(t, mock.countBeforeSecondCall, int64(0))
@@ -227,12 +227,45 @@ func TestCollectCostDataStreaming(t *testing.T) {
 	require.Equal(t, "AmazonS3", recs[1].Service)
 }
 
+func TestCollectCostDataCustomBatchSize(t *testing.T) {
+	db := setupDB(t)
+	output := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-01"), End: aws.String("2023-01-02")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonEC2", "123456789012", "us-east-1"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("1"), Unit: aws.String("USD")},
+						},
+					},
+					{
+						Keys: []string{"AmazonS3", "123456789012", "us-east-1"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("2"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+	}
+	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second, 1))
+
+	var recs []models.CostRecord
+	require.NoError(t, db.Find(&recs).Error)
+	require.Len(t, recs, 2)
+}
+
 func TestCollectCostDataTimeout(t *testing.T) {
 	db := setupDB(t)
 	svc := services.NewCostService(&timeoutMockAWSClient{delay: 50 * time.Millisecond}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(context.Background(), start, end, 10*time.Millisecond)
+	err := svc.CollectCostData(context.Background(), start, end, 10*time.Millisecond, 100)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -244,7 +277,7 @@ func TestCollectCostDataContextCanceled(t *testing.T) {
 	end := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := svc.CollectCostData(ctx, start, end, 30*time.Second)
+	err := svc.CollectCostData(ctx, start, end, 30*time.Second, 100)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.Canceled)
 }
@@ -256,7 +289,7 @@ func TestCollectCostDataPerRequestTimeout(t *testing.T) {
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
 	// Timeout shorter than total duration but longer than each request
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Millisecond))
+	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Millisecond, 100))
 	require.Equal(t, 2, client.call)
 }
 
