@@ -226,9 +226,31 @@ func NewCLI() *cobra.Command {
 	summaryCmd.Flags().StringVar(&groupBy, "group-by", "service", "Group costs by: service, account, region, or team")
 	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
 
+	completionCmd := &cobra.Command{
+		Use:       "completion [bash|zsh|fish|powershell]",
+		Short:     "Generate shell completion script",
+		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
+		Args:      cobra.ExactValidArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return rootCmd.GenBashCompletion(cmd.OutOrStdout())
+			case "zsh":
+				return rootCmd.GenZshCompletion(cmd.OutOrStdout())
+			case "fish":
+				return rootCmd.GenFishCompletion(cmd.OutOrStdout(), true)
+			case "powershell":
+				return rootCmd.GenPowerShellCompletion(cmd.OutOrStdout())
+			default:
+				return fmt.Errorf("unsupported shell %q", args[0])
+			}
+		},
+	}
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(summaryCmd)
+	rootCmd.AddCommand(completionCmd)
 
 	return rootCmd
 }
