@@ -271,6 +271,74 @@ func TestRunAnalysisReturnsErrorWhenMarshalFails(t *testing.T) {
 	require.ErrorContains(t, err, "marshal top services")
 }
 
+func TestGetLatestAnalysisUnmarshalErrors(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(*models.CostAnalysis)
+		wantErr string
+	}{
+		{
+			name: "TopServices",
+			mutate: func(a *models.CostAnalysis) {
+				a.TopServices = "invalid"
+			},
+			wantErr: "unmarshal top services",
+		},
+		{
+			name: "TopAccounts",
+			mutate: func(a *models.CostAnalysis) {
+				a.TopAccounts = "invalid"
+			},
+			wantErr: "unmarshal top accounts",
+		},
+		{
+			name: "TopRegions",
+			mutate: func(a *models.CostAnalysis) {
+				a.TopRegions = "invalid"
+			},
+			wantErr: "unmarshal top regions",
+		},
+		{
+			name: "CostByTeam",
+			mutate: func(a *models.CostAnalysis) {
+				a.CostByTeam = "invalid"
+			},
+			wantErr: "unmarshal cost by team",
+		},
+		{
+			name: "Insights",
+			mutate: func(a *models.CostAnalysis) {
+				a.Insights = "invalid"
+			},
+			wantErr: "unmarshal insights",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			db := setupAnalysisDB(t)
+			analysis := models.CostAnalysis{
+				Date:            time.Now(),
+				TotalCost:       1,
+				UntaggedCost:    0,
+				UntaggedPercent: 0,
+				TopServices:     "[]",
+				TopAccounts:     "[]",
+				TopRegions:      "[]",
+				CostByTeam:      "[]",
+				Insights:        "[]",
+			}
+			tt.mutate(&analysis)
+			require.NoError(t, db.Create(&analysis).Error)
+
+			svc := services.NewAnalysisService(db)
+			_, err := svc.GetLatestAnalysis()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
 type fakeAnalysisService struct {
 	*services.AnalysisService
 	delay time.Duration
