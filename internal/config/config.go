@@ -25,6 +25,7 @@ type Config struct {
 	AnalysisInterval       int // minutes
 	LogLevel               string
 	APIKeys                []string
+	APIKeyHashes           []string
 	AllowedOrigins         []string
 	AllowNoAuth            bool
 }
@@ -49,6 +50,7 @@ func Load() (*Config, error) {
 		AnalysisInterval:       getEnvAsInt("ANALYSIS_INTERVAL", 120),
 		LogLevel:               getEnv("LOG_LEVEL", "info"),
 		APIKeys:                getEnvAsSlice("API_KEYS", ",", []string{}),
+		APIKeyHashes:           getEnvAsSlice("API_KEY_HASHES", ",", []string{}),
 		AllowedOrigins:         getEnvAsSlice("CORS_ORIGINS", ",", []string{"http://localhost:3000"}),
 		AllowNoAuth:            getEnvAsBool("ALLOW_NO_AUTH", false),
 	}

@@ -39,7 +39,7 @@ func (s *Server) Router() (http.Handler, error) {
 	analysisHandler := handlers.NewAnalysisHandler(s.analysisService)
 	dashboardHandler := handlers.NewDashboardHandler(s.costService, s.analysisService)
 
-	authMiddleware, err := middleware.AuthMiddleware(s.config.APIKeys, s.config.AllowNoAuth)
+	authMiddleware, err := middleware.AuthMiddleware(s.config.APIKeys, s.config.APIKeyHashes, s.config.AllowNoAuth)
 	if err != nil {
 		return nil, fmt.Errorf("auth middleware setup failed: %w", err)
 	}

@@ -2,6 +2,8 @@ package middleware_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +35,47 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			h, err := middleware.AuthMiddleware([]string{"secret1", "secret2"}, false)
+			h, err := middleware.AuthMiddleware([]string{"secret1", "secret2"}, nil, false)
+			require.NoError(t, err)
+			router.Use(h)
+			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+			req, _ := http.NewRequest(http.MethodGet, "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, tc.expected, w.Code)
+			if tc.expected == http.StatusUnauthorized {
+				require.Equal(t, "Bearer", w.Header().Get("WWW-Authenticate"))
+			}
+		})
+	}
+}
+
+func TestAuthMiddlewareHashedTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h1 := sha256.Sum256([]byte("secret1"))
+	h2 := sha256.Sum256([]byte("secret2"))
+	hashes := []string{hex.EncodeToString(h1[:]), hex.EncodeToString(h2[:])}
+
+	tests := []struct {
+		name     string
+		header   string
+		expected int
+	}{
+		{"first hash", "Bearer secret1", http.StatusOK},
+		{"second hash", "Bearer secret2", http.StatusOK},
+		{"invalid token", "Bearer wrong", http.StatusUnauthorized},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			router := gin.New()
+			h, err := middleware.AuthMiddleware(nil, hashes, false)
 			require.NoError(t, err)
 			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -57,13 +99,13 @@ func TestAuthMiddlewareNoAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("error when not allowed", func(t *testing.T) {
-		_, err := middleware.AuthMiddleware([]string{}, false)
+		_, err := middleware.AuthMiddleware(nil, nil, false)
 		require.Error(t, err)
 	})
 
 	t.Run("allow when explicitly permitted", func(t *testing.T) {
 		router := gin.New()
-		h, err := middleware.AuthMiddleware([]string{}, true)
+		h, err := middleware.AuthMiddleware(nil, nil, true)
 		require.NoError(t, err)
 		router.Use(h)
 		router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -98,7 +140,7 @@ func TestAuthMiddlewareLogs(t *testing.T) {
 			defer log.SetOutput(orig)
 
 			router := gin.New()
-			h, err := middleware.AuthMiddleware([]string{"secret1"}, false)
+			h, err := middleware.AuthMiddleware([]string{"secret1"}, nil, false)
 			require.NoError(t, err)
 			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
