@@ -2,7 +2,9 @@
 package middleware
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,8 +16,8 @@ import (
 // AuthMiddleware validates the Authorization header against a set of static API keys.
 // The Bearer scheme is matched in a case-insensitive manner.
 // Unauthorized responses include a `WWW-Authenticate: Bearer` header.
-func AuthMiddleware(apiKeys []string, allowNoAuth bool) (gin.HandlerFunc, error) {
-	if len(apiKeys) == 0 {
+func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (gin.HandlerFunc, error) {
+	if len(apiKeys) == 0 && len(apiKeyHashes) == 0 {
 		if allowNoAuth {
 			log.Println("Warning: starting without API key; authentication disabled")
 			return func(c *gin.Context) { c.Next() }, nil
@@ -46,10 +48,19 @@ func AuthMiddleware(apiKeys []string, allowNoAuth bool) (gin.HandlerFunc, error)
 		}
 
 		token := parts[1]
+		// Precompute hash of token for hashed comparison.
+		hash := sha256.Sum256([]byte(token))
+		tokenHash := hex.EncodeToString(hash[:])
+
 		// Check token against all configured keys using constant time comparison.
 		match := false
 		for _, k := range apiKeys {
 			if subtle.ConstantTimeCompare([]byte(token), []byte(k)) == 1 {
+				match = true
+			}
+		}
+		for _, h := range apiKeyHashes {
+			if subtle.ConstantTimeCompare([]byte(tokenHash), []byte(h)) == 1 {
 				match = true
 			}
 		}

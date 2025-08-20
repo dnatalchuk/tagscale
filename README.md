@@ -194,9 +194,23 @@ Generate shell completion scripts for easier CLI usage:
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)
 - `ANALYSIS_INTERVAL`: How often to run cost analysis (minutes)
 - `API_KEYS` (optional): Comma-separated API keys required for API requests. Send as `Authorization: Bearer <API_KEY>`
+- `API_KEY_HASHES` (optional): Comma-separated SHA-256 hashes of API keys. Incoming tokens are hashed and compared to these values.
 - `CORS_ORIGINS`: Comma-separated list of allowed origins for API requests
 - `REACT_APP_API_URL`: base URL for API calls made by the React app
 - `REACT_APP_API_KEY` (optional): API key for the React frontend. When set, the app sends requests with `Authorization: Bearer <key>`
+
+#### Migrating to hashed API keys
+
+For improved security, you can supply hashes instead of raw keys using `API_KEY_HASHES`.
+Generate a SHA-256 hash with:
+
+```bash
+echo -n "my-key" | sha256sum | cut -d' ' -f1
+```
+
+Set the resulting hash in `API_KEY_HASHES`. During migration you may provide both
+`API_KEYS` and `API_KEY_HASHES`; a request is authorized if it matches either a
+plaintext key or a hash.
 
 ### AWS Permissions
 
@@ -225,7 +239,7 @@ Your AWS credentials need the following permissions:
 
 ## API Endpoints
 
-All `/api/v1` routes require one of the `API_KEYS` if any are configured. Include it in requests as:
+All `/api/v1` routes require a configured API key. Include it in requests as:
 
 ```
 Authorization: Bearer <API_KEY>
