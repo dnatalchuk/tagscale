@@ -384,11 +384,21 @@ func (s *AnalysisService) GetLatestAnalysis() (AnalysisResult, error) {
 		UntaggedPercent: analysis.UntaggedPercent,
 	}
 
-	_ = json.Unmarshal([]byte(analysis.TopServices), &result.TopServices)
-	_ = json.Unmarshal([]byte(analysis.TopAccounts), &result.TopAccounts)
-	_ = json.Unmarshal([]byte(analysis.TopRegions), &result.TopRegions)
-	_ = json.Unmarshal([]byte(analysis.CostByTeam), &result.CostByTeam)
-	_ = json.Unmarshal([]byte(analysis.Insights), &result.Insights)
+	if err := json.Unmarshal([]byte(analysis.TopServices), &result.TopServices); err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to unmarshal top services: %w", err)
+	}
+	if err := json.Unmarshal([]byte(analysis.TopAccounts), &result.TopAccounts); err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to unmarshal top accounts: %w", err)
+	}
+	if err := json.Unmarshal([]byte(analysis.TopRegions), &result.TopRegions); err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to unmarshal top regions: %w", err)
+	}
+	if err := json.Unmarshal([]byte(analysis.CostByTeam), &result.CostByTeam); err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to unmarshal cost by team: %w", err)
+	}
+	if err := json.Unmarshal([]byte(analysis.Insights), &result.Insights); err != nil {
+		return AnalysisResult{}, fmt.Errorf("failed to unmarshal insights: %w", err)
+	}
 
 	return result, nil
 }
