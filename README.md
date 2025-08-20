@@ -162,6 +162,24 @@ Insights:
  • 37.0% of your costs are untagged. Consider implementing tagging policies.
 ```
 
+### Shell Completion
+
+Generate shell completion scripts for easier CLI usage:
+
+```bash
+# Bash
+./bin/tagscale-cli completion bash > /etc/bash_completion.d/tagscale
+
+# Zsh
+./bin/tagscale-cli completion zsh > "${fpath[1]}/_tagscale"
+
+# Fish
+./bin/tagscale-cli completion fish > ~/.config/fish/completions/tagscale.fish
+
+# PowerShell
+./bin/tagscale-cli completion powershell > tagscale.ps1
+```
+
 ## Configuration
 
 ### Environment Variables
