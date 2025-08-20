@@ -55,7 +55,7 @@ func NewCostService(awsClient CostExplorerAPI, db *gorm.DB) *CostService {
 // being canceled. A fresh context with the timeout is created for every
 // request so that the limit applies per request rather than for the entire
 // operation.
-func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate time.Time, timeout time.Duration) error {
+func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate time.Time, timeout time.Duration, batchSize int) error {
 	// Retrieve pages from Cost Explorer one at a time. After processing each
 	// page, insert its records before requesting the next page so that large
 	// result sets don't have to be held entirely in memory.
@@ -122,7 +122,10 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 		}
 
 		if len(costRecords) > 0 {
-			if err := s.db.WithContext(reqCtx).CreateInBatches(costRecords, 100).Error; err != nil {
+			if batchSize <= 0 {
+				batchSize = 100
+			}
+			if err := s.db.WithContext(reqCtx).CreateInBatches(costRecords, batchSize).Error; err != nil {
 				cancel()
 				return fmt.Errorf("failed to insert cost records: %w", err)
 			}

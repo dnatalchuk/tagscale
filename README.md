@@ -170,6 +170,7 @@ Insights:
 - `AWS_REGION`: AWS region for Cost Explorer
 - `AWS_PROFILE` (optional): Shared config profile name used for AWS credentials
 - `AWS_REQUEST_TIMEOUT`: Timeout in seconds for AWS API calls (default used by the CLI `--timeout` flag; must be > 0)
+- `COST_BATCH_SIZE`: Number of cost records inserted per database batch (default 100)
 - `SLACK_TOKEN`: Slack bot token for notifications
 - `EMAIL_SMTP_*`: Email configuration for notifications
 - `DATA_COLLECTION_INTERVAL`: How often to collect cost data (minutes)

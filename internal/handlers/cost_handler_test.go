@@ -29,7 +29,7 @@ func setupCostService(t *testing.T) *services.CostService {
 
 func TestGetCostSummaryInvalidGroupBy(t *testing.T) {
 	service := setupCostService(t)
-	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -44,7 +44,7 @@ func TestGetCostSummaryInvalidGroupBy(t *testing.T) {
 
 func TestGetTopCostsInvalidGroupBy(t *testing.T) {
 	service := setupCostService(t)
-	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -59,7 +59,7 @@ func TestGetTopCostsInvalidGroupBy(t *testing.T) {
 
 func TestCollectCostsInvalidDays(t *testing.T) {
 	service := setupCostService(t)
-	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -74,7 +74,7 @@ func TestCollectCostsInvalidDays(t *testing.T) {
 
 func TestCollectCostsNegativeDays(t *testing.T) {
 	service := setupCostService(t)
-	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -98,7 +98,7 @@ func TestCollectCostsErrorPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	service := services.NewCostService(&errorCostExplorer{}, db)
-	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30})
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

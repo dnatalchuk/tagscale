@@ -14,6 +14,7 @@ type Config struct {
 	DatabaseURL            string
 	AWSRegion              string
 	AWSRequestTimeout      int // seconds
+	CostBatchSize          int // number of records per DB batch insert
 	SlackToken             string
 	SlackChannel           string
 	EmailSMTPHost          string
@@ -37,6 +38,7 @@ func Load() (*Config, error) {
 		DatabaseURL:            getEnv("DATABASE_URL", "postgres://user:password@localhost/tagscale?sslmode=disable"),
 		AWSRegion:              getEnv("AWS_REGION", "us-east-1"),
 		AWSRequestTimeout:      getEnvAsInt("AWS_REQUEST_TIMEOUT", 30),
+		CostBatchSize:          getEnvAsInt("COST_BATCH_SIZE", 100),
 		SlackToken:             getEnv("SLACK_TOKEN", ""),
 		SlackChannel:           getEnv("SLACK_CHANNEL", "#general"),
 		EmailSMTPHost:          getEnv("EMAIL_SMTP_HOST", ""),
