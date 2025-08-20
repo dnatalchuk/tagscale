@@ -93,6 +93,9 @@ func errorf(output, format string, args ...interface{}) error {
 // selected format. When JSON output is requested, the error is printed as a
 // JSON object; otherwise it is written to stderr as plain text.
 func printError(cmd *cobra.Command, err error) {
+	if flag := cmd.Flag("silent"); flag != nil && flag.Value.String() == "true" {
+		return
+	}
 	output := "table"
 	if flag := cmd.Flag("output"); flag != nil {
 		output = flag.Value.String()
@@ -125,6 +128,7 @@ func NewCLI() *cobra.Command {
 		limit     int
 		groupBy   string
 		quiet     bool
+		silent    bool
 		verbose   bool
 	)
 
@@ -146,6 +150,10 @@ func NewCLI() *cobra.Command {
 				_ = cmd.Help()
 				return fmt.Errorf("invalid output format %q: supported formats are table and json", output)
 			}
+			if silent && (quiet || verbose) {
+				_ = cmd.Help()
+				return fmt.Errorf("cannot use --silent with --quiet or --verbose")
+			}
 			if quiet && verbose {
 				_ = cmd.Help()
 				return fmt.Errorf("cannot use --quiet and --verbose together")
@@ -163,6 +171,7 @@ func NewCLI() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
 	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress progress output")
+	rootCmd.PersistentFlags().BoolVar(&silent, "silent", false, "Suppress all output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show verbose progress output")
 
 	// VERSION command
@@ -170,6 +179,9 @@ func NewCLI() *cobra.Command {
 		Use:   "version",
 		Short: "Print the CLI version",
 		Run: func(cmd *cobra.Command, args []string) {
+			if flag := cmd.Flag("silent"); flag != nil && flag.Value.String() == "true" {
+				return
+			}
 			if output == "json" {
 				_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"version": Version})
 				return
@@ -183,7 +195,7 @@ func NewCLI() *cobra.Command {
 		Use:   "scan",
 		Short: "Scan AWS cost and store data into DB",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScan(cmd.Context(), cmd, cfg, dateRange, useDB, migrate, dbPath, region, profile, output, timeout, quiet, verbose)
+			return runScan(cmd.Context(), cmd, cfg, dateRange, useDB, migrate, dbPath, region, profile, output, timeout, quiet, silent, verbose)
 		},
 	}
 
@@ -206,7 +218,7 @@ func NewCLI() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSummary(cmd, cfg, dateRange, useDB, migrate, dbPath, output, groupBy, limit, quiet, verbose)
+			return runSummary(cmd, cfg, dateRange, useDB, migrate, dbPath, output, groupBy, limit, quiet, silent, verbose)
 		},
 	}
 
@@ -221,13 +233,13 @@ func NewCLI() *cobra.Command {
 	return rootCmd
 }
 
-func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, region, profile, output string, timeout int, quiet, verbose bool) error {
+func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, region, profile, output string, timeout int, quiet, silent, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
 	}
 
-	if output == "table" && !quiet {
+	if output == "table" && !quiet && !silent {
 		if verbose {
 			fmt.Fprintf(cmd.OutOrStdout(), "🔍 Running TagScale scan from %s to %s...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 		} else {
@@ -270,8 +282,14 @@ func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeS
 		return errorf(output, "Cost data collection failed: %w", err)
 	}
 
-	if quiet && output != "json" {
-		// Suppress all non-JSON output when in quiet mode.
+	if silent {
+		return nil
+	}
+
+	if quiet {
+		if output == "json" {
+			return nil
+		}
 	} else if output == "json" {
 		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"message": "cost data collected"})
 	} else {
@@ -322,13 +340,13 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output, groupBy string, limit int, quiet, verbose bool) error {
+func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output, groupBy string, limit int, quiet, silent, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
 	}
 
-	if output == "table" && !quiet {
+	if output == "table" && !quiet && !silent {
 		if verbose {
 			fmt.Fprintf(cmd.OutOrStdout(), "📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), groupBy, limit)
 		} else {
@@ -354,7 +372,14 @@ func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, 
 		return errorf(output, "Analysis failed: %w", err)
 	}
 
+	if silent {
+		return nil
+	}
+
 	if output == "json" {
+		if quiet {
+			return nil
+		}
 		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 	} else {
 		if !quiet && verbose {

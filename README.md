@@ -102,7 +102,7 @@ flag to persist results to a local SQLite file, or the `--db` flag to use the da
 configured by `DATABASE_URL`. Use `--migrate` to run any pending database migrations.
 Migrations are skipped by default for faster startup.
 
-Use `--quiet` (`-q`) to suppress all non-JSON output, including progress messages and results, or `--verbose` (`-v`) for more detailed output. These flags are mutually exclusive.
+Use `--quiet` (`-q`) to suppress progress messages. When combined with JSON output, success messages are omitted as well. Use `--silent` to suppress all CLI output, or `--verbose` (`-v`) for more detailed progress. These flags are mutually exclusive.
 
 To apply migrations explicitly, include `--migrate` with your command, for example:
 

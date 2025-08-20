@@ -70,7 +70,7 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	require.NoError(t, runScan(context.Background(), cmd, cfg, "1", false, true, dbPath, "", "", "table", 30, true, false))
+	require.NoError(t, runScan(context.Background(), cmd, cfg, "1", false, true, dbPath, "", "", "table", 30, true, false, false))
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
 
