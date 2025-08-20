@@ -1,6 +1,8 @@
 package middleware_test
 
 import (
+	"bytes"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -72,4 +74,47 @@ func TestAuthMiddlewareNoAPIKey(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, w.Code)
 	})
+}
+
+func TestAuthMiddlewareLogs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name       string
+		header     string
+		logMessage string
+		notInLog   []string
+	}{
+		{"missing header", "", "Warning: missing Authorization header", nil},
+		{"malformed header", "Token foo", "Warning: malformed Authorization header", nil},
+		{"invalid token", "Bearer wrong", "Warning: invalid API key", []string{"wrong"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			orig := log.Writer()
+			log.SetOutput(&buf)
+			defer log.SetOutput(orig)
+
+			router := gin.New()
+			h, err := middleware.AuthMiddleware([]string{"secret1"}, false)
+			require.NoError(t, err)
+			router.Use(h)
+			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+			req, _ := http.NewRequest(http.MethodGet, "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusUnauthorized, w.Code)
+			require.Contains(t, buf.String(), tc.logMessage)
+			for _, s := range tc.notInLog {
+				require.NotContains(t, buf.String(), s)
+			}
+		})
+	}
 }
