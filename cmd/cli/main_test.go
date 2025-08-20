@@ -34,7 +34,7 @@ func TestRunSummaryWithDBPath(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	cmd := &cobra.Command{}
-	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", "service", 5, true, false))
+	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", "service", 5, true, false, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	cmd := &cobra.Command{}
-	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false))
+	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestRunSummaryClosesDB(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	cmd := &cobra.Command{}
-	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false))
+	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false, false))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestRunSummaryQuietModeNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false)
+	err = runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -124,7 +124,101 @@ func TestRunScanQuietModeNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, true, false)
+	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, true, false, false)
+	require.NoError(t, err)
+
+	require.Empty(t, strings.TrimSpace(buf.String()))
+}
+
+func TestRunScanQuietJSONNoOutput(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	mockClient := &mockQuietAWSClient{}
+	origFactory := awsClientFactory
+	awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+		return mockClient, nil
+	}
+	defer func() { awsClientFactory = origFactory }()
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "json", 30, true, false, false)
+	require.NoError(t, err)
+
+	require.Empty(t, strings.TrimSpace(buf.String()))
+}
+
+func TestRunSummaryQuietJSONNoOutput(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	err = runSummary(cmd, cfg, "30", true, true, "", "json", "service", 5, true, false, false)
+	require.NoError(t, err)
+
+	require.Empty(t, strings.TrimSpace(buf.String()))
+}
+
+func TestRunSummarySilentModeNoOutput(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	err = runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, false, true, true)
+	require.NoError(t, err)
+
+	require.Empty(t, strings.TrimSpace(buf.String()))
+}
+
+func TestRunScanSilentModeNoOutput(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	mockClient := &mockQuietAWSClient{}
+	origFactory := awsClientFactory
+	awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+		return mockClient, nil
+	}
+	defer func() { awsClientFactory = origFactory }()
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, false, true, true)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -205,6 +299,21 @@ func TestCLIQuietVerboseConflict(t *testing.T) {
 	require.Contains(t, err.Error(), "cannot use --quiet and --verbose together")
 }
 
+func TestCLISilentConflict(t *testing.T) {
+	cli := NewCLI()
+	cli.AddCommand(&cobra.Command{Use: "noop", Run: func(cmd *cobra.Command, args []string) {}})
+
+	cli.SetArgs([]string{"noop", "--silent", "--quiet"})
+	err := cli.Execute()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot use --silent with --quiet or --verbose")
+
+	cli.SetArgs([]string{"noop", "--silent", "--verbose"})
+	err = cli.Execute()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot use --silent with --quiet or --verbose")
+}
+
 func TestCLIScanInvalidTimeout(t *testing.T) {
 	cases := []string{"0", "-5"}
 	for _, tt := range cases {
@@ -224,6 +333,7 @@ func TestCLIVersion(t *testing.T) {
 		{[]string{"version"}, Version + "\n"},
 		{[]string{"version", "--output", "json"}, fmt.Sprintf("{\"version\":\"%s\"}\n", Version)},
 		{[]string{"--version"}, Version + "\n"},
+		{[]string{"version", "--silent"}, ""},
 	}
 
 	for _, tt := range cases {
@@ -280,7 +390,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)
 
-			require.NoError(t, runSummary(cmd, cfg, "30", true, false, "", "table", tt.group, tt.limit, false, false))
+			require.NoError(t, runSummary(cmd, cfg, "30", true, false, "", "table", tt.group, tt.limit, false, false, false))
 
 			output := buf.String()
 
@@ -319,7 +429,7 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	require.NoError(t, runSummary(cmd, cfg, "7", true, false, "", "table", "service", 5, false, false))
+	require.NoError(t, runSummary(cmd, cfg, "7", true, false, "", "table", "service", 5, false, false, false))
 
 	output := buf.String()
 
