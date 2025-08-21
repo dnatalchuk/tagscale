@@ -395,7 +395,7 @@ func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, 
 
 	analysisService := services.NewAnalysisService(db)
 
-	result, err := analysisService.RunAnalysis(limit, startDate, endDate, groupBy, false)
+	result, err := analysisService.RunAnalysis(cmd.Context(), limit, startDate, endDate, groupBy, false)
 	if err != nil {
 		return errorf(output, "Analysis failed: %w", err)
 	}

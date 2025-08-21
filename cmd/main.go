@@ -124,7 +124,7 @@ func startBackgroundWorkers(ctx context.Context, costService *services.CostServi
 				log.Println("Starting cost analysis...")
 				end := time.Now()
 				start := end.AddDate(0, 0, -30)
-				if _, err := analysisService.RunAnalysis(5, start, end, []string{"service", "account", "region", "team"}, true); err != nil {
+				if _, err := analysisService.RunAnalysis(ctx, 5, start, end, []string{"service", "account", "region", "team"}, true); err != nil {
 					log.Printf("Cost analysis failed: %v", err)
 				}
 			case <-ctx.Done():

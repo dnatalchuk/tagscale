@@ -386,7 +386,7 @@ func TestRunAnalysis(t *testing.T) {
 	require.NoError(t, db.Create(&recs).Error)
 
 	svc := services.NewAnalysisService(db)
-	res, err := svc.RunAnalysis(5, yesterday, today, []string{"service", "account", "region", "team"}, true)
+	res, err := svc.RunAnalysis(context.Background(), 5, yesterday, today, []string{"service", "account", "region", "team"}, true)
 	require.NoError(t, err)
 
 	var analysis models.CostAnalysis
