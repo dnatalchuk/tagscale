@@ -126,7 +126,7 @@ func NewCLI() *cobra.Command {
 		output    string
 		timeout   int
 		limit     int
-		groupBy   string
+		groupBy   []string
 		quiet     bool
 		silent    bool
 		verbose   bool
@@ -211,9 +211,11 @@ func NewCLI() *cobra.Command {
 				_ = cmd.Help()
 				return fmt.Errorf("limit must be greater than 0")
 			}
-			if _, ok := allowedGroupByOptions[groupBy]; !ok {
-				_ = cmd.Help()
-				return fmt.Errorf("invalid group-by value %q: supported options are service, account, region, and team", groupBy)
+			for _, g := range groupBy {
+				if _, ok := allowedGroupByOptions[g]; !ok {
+					_ = cmd.Help()
+					return fmt.Errorf("invalid group-by value %q: supported options are service, account, region, and team", g)
+				}
 			}
 			return nil
 		},
@@ -223,7 +225,7 @@ func NewCLI() *cobra.Command {
 	}
 
 	summaryCmd.Flags().IntVar(&limit, "limit", 5, "Limit number of results (must be > 0)")
-	summaryCmd.Flags().StringVar(&groupBy, "group-by", "service", "Group costs by: service, account, region, or team")
+	summaryCmd.Flags().StringSliceVar(&groupBy, "group-by", []string{"service"}, "Group costs by: service, account, region, or team")
 	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
 
 	completionCmd := &cobra.Command{
@@ -362,7 +364,7 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	return start, end, nil
 }
 
-func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output, groupBy string, limit int, quiet, silent, verbose bool) error {
+func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, migrate bool, dbPath, output string, groupBy []string, limit int, quiet, silent, verbose bool) error {
 	startDate, endDate, err := parseDateRange(rangeStr)
 	if err != nil {
 		return errorf(output, "Invalid range: %w", err)
@@ -370,7 +372,7 @@ func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, 
 
 	if output == "table" && !quiet && !silent {
 		if verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), groupBy, limit)
+			fmt.Fprintf(cmd.OutOrStdout(), "📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), strings.Join(groupBy, ", "), limit)
 		} else {
 			fmt.Fprintln(cmd.OutOrStdout(), "📊 Running TagScale summary...")
 		}
@@ -389,7 +391,7 @@ func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, 
 
 	analysisService := services.NewAnalysisService(db)
 
-	result, err := analysisService.RunAnalysis(limit, startDate, endDate, []string{groupBy}, false)
+	result, err := analysisService.RunAnalysis(limit, startDate, endDate, groupBy, false)
 	if err != nil {
 		return errorf(output, "Analysis failed: %w", err)
 	}
@@ -413,7 +415,7 @@ func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, 
 	return nil
 }
 
-func printAnalysis(w io.Writer, result services.AnalysisResult, groupBy string, quiet, verbose bool) {
+func printAnalysis(w io.Writer, result services.AnalysisResult, groupBy []string, quiet, verbose bool) {
 	if quiet {
 		return
 	}
@@ -421,40 +423,42 @@ func printAnalysis(w io.Writer, result services.AnalysisResult, groupBy string, 
 	fmt.Fprintf(w, "\n💰 Total Cost: $%.2f\n", result.TotalCost)
 	fmt.Fprintf(w, "🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
 
-	var (
-		items []models.CostSummary
-		title string
-	)
-	switch groupBy {
-	case "account":
-		items = result.TopAccounts
-		title = "Top Accounts"
-	case "region":
-		items = result.TopRegions
-		title = "Top Regions"
-	case "team":
-		items = result.CostByTeam
-		title = "Cost By Team"
-	default:
-		items = result.TopServices
-		title = "Top Services"
-	}
-
-	fmt.Fprintf(w, "\n%s:\n", title)
-	for _, s := range items {
-		label := s.Service
-		switch groupBy {
+	for _, g := range groupBy {
+		var (
+			items []models.CostSummary
+			title string
+		)
+		switch g {
 		case "account":
-			label = s.Account
+			items = result.TopAccounts
+			title = "Top Accounts"
 		case "region":
-			label = s.Region
+			items = result.TopRegions
+			title = "Top Regions"
 		case "team":
-			label = s.Team
+			items = result.CostByTeam
+			title = "Cost By Team"
+		default:
+			items = result.TopServices
+			title = "Top Services"
 		}
-		if verbose {
-			fmt.Fprintf(w, " • %-30s $%.2f (%.1f%%)\n", label, s.TotalCost, s.Percentage)
-		} else {
-			fmt.Fprintf(w, " • %-30s $%.2f\n", label, s.TotalCost)
+
+		fmt.Fprintf(w, "\n%s:\n", title)
+		for _, s := range items {
+			label := s.Service
+			switch g {
+			case "account":
+				label = s.Account
+			case "region":
+				label = s.Region
+			case "team":
+				label = s.Team
+			}
+			if verbose {
+				fmt.Fprintf(w, " • %-30s $%.2f (%.1f%%)\n", label, s.TotalCost, s.Percentage)
+			} else {
+				fmt.Fprintf(w, " • %-30s $%.2f\n", label, s.TotalCost)
+			}
 		}
 	}
 
