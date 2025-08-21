@@ -2,7 +2,6 @@
 package services
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -45,35 +44,22 @@ func NewAnalysisService(db *gorm.DB) *AnalysisService {
 
 func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, groupBy []string, save bool) (AnalysisResult, error) {
 	var result AnalysisResult
-	// Get total cost
-	var totalCostDB sql.NullFloat64
+
+	// Get total and untagged costs in a single query
+	var totals struct {
+		Total    float64
+		Untagged float64
+	}
 	db := s.db.Model(&models.CostRecord{}).
 		Where("date >= ? AND date <= ?", startDate, endDate).
-		Select("SUM(cost)").
-		Scan(&totalCostDB)
+		Select("SUM(cost) AS total, SUM(CASE WHEN tags='' OR tags='{}' THEN cost END) AS untagged").
+		Scan(&totals)
 	if db.Error != nil {
-		return result, fmt.Errorf("failed to get total cost: %w", db.Error)
+		return result, fmt.Errorf("failed to get cost totals: %w", db.Error)
 	}
 
-	totalCost := float64(0)
-	if totalCostDB.Valid {
-		totalCost = totalCostDB.Float64
-	}
-
-	// Get untagged cost (assuming empty or "{}" tags means untagged)
-	var untaggedCostDB sql.NullFloat64
-	db = s.db.Model(&models.CostRecord{}).
-		Where("date >= ? AND date <= ? AND (tags = '' OR tags = '{}')", startDate, endDate).
-		Select("SUM(cost)").
-		Scan(&untaggedCostDB)
-	if db.Error != nil {
-		return result, fmt.Errorf("failed to get untagged cost: %w", db.Error)
-	}
-
-	untaggedCost := float64(0)
-	if untaggedCostDB.Valid {
-		untaggedCost = untaggedCostDB.Float64
-	}
+	totalCost := totals.Total
+	untaggedCost := totals.Untagged
 
 	untaggedPercent := float64(0)
 	if totalCost > 0 {
