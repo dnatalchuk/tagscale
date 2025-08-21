@@ -13,6 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// JSONMarshal is a package-level variable to allow overriding in tests.
+var JSONMarshal = json.Marshal
+
 // CostExplorerAPI describes the subset of the AWS Cost Explorer client used by
 // CostService. Implementations should return cost data grouped by service,
 // account, region, resource ID and team tag so that CollectCostData can attach
@@ -97,7 +100,11 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 				if tagValue != "" {
 					tags["Team"] = tagValue
 				}
-				tagsJSON, _ := json.Marshal(tags)
+				tagsJSON, err := JSONMarshal(tags)
+				if err != nil {
+					cancel()
+					return fmt.Errorf("failed to marshal tags: %w", err)
+				}
 
 				costAmount := 0.0
 				if metric, ok := group.Metrics["BlendedCost"]; ok {
