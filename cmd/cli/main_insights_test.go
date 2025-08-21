@@ -23,7 +23,7 @@ func TestPrintAnalysisNoInsightsHeader(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	printAnalysis(&buf, result, "service", false, false)
+	printAnalysis(&buf, result, []string{"service"}, false, false)
 
 	output := buf.String()
 

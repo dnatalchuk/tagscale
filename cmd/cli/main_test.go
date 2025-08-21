@@ -34,7 +34,7 @@ func TestRunSummaryWithDBPath(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	cmd := &cobra.Command{}
-	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", "service", 5, true, false, false))
+	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", []string{"service"}, 5, true, false, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	cmd := &cobra.Command{}
-	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false, false))
+	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false))
 
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestRunSummaryClosesDB(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	cmd := &cobra.Command{}
-	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false, false))
+	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false))
 
 	fds, err := os.ReadDir("/proc/self/fd")
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestRunSummaryQuietModeNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, true, false, false)
+	err = runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -171,7 +171,7 @@ func TestRunSummaryQuietJSONNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "json", "service", 5, true, false, false)
+	err = runSummary(cmd, cfg, "30", true, true, "", "json", []string{"service"}, 5, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -191,7 +191,7 @@ func TestRunSummarySilentModeNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "table", "service", 5, false, true, true)
+	err = runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, false, true, true)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -390,7 +390,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)
 
-			require.NoError(t, runSummary(cmd, cfg, "30", true, false, "", "table", tt.group, tt.limit, false, false, false))
+			require.NoError(t, runSummary(cmd, cfg, "30", true, false, "", "table", []string{tt.group}, tt.limit, false, false, false))
 
 			output := buf.String()
 
@@ -402,6 +402,36 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunSummaryMultipleGroups(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.CostAnalysis{}, &models.TeamMapping{}))
+
+	yesterday := time.Now().AddDate(0, 0, -1)
+	rec := models.CostRecord{Date: yesterday, Service: "AmazonEC2", Account: "1111", Region: "us-east-1", Cost: 100, Tags: "{}", ResourceID: "i-1"}
+	require.NoError(t, db.Create(&rec).Error)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	groups := []string{"service", "account"}
+	require.NoError(t, runSummary(cmd, cfg, "30", true, false, "", "table", groups, 5, false, false, false))
+
+	output := buf.String()
+	require.Contains(t, output, "Top Services:")
+	require.Contains(t, output, "Top Accounts:")
 }
 
 func TestRunSummaryHonorsRange(t *testing.T) {
@@ -429,7 +459,7 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	require.NoError(t, runSummary(cmd, cfg, "7", true, false, "", "table", "service", 5, false, false, false))
+	require.NoError(t, runSummary(cmd, cfg, "7", true, false, "", "table", []string{"service"}, 5, false, false, false))
 
 	output := buf.String()
 

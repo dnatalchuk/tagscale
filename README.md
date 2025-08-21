@@ -139,6 +139,12 @@ range using the format `YYYY-MM-DD` or `YYYY-MM-DD:YYYY-MM-DD`.
 
 To focus on specific dimensions, the `summary` command supports grouping and limiting.
 Accepted values for `--group-by` are `service` (default), `account`, `region`, and `team`.
+The flag may be provided multiple times (or as a comma-separated list) to show several breakdowns at once:
+
+```bash
+./bin/tagscale-cli summary --group-by service --group-by account
+```
+
 The `--limit` flag restricts the number of results and must be a positive integer:
 
 ```bash
