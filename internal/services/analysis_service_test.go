@@ -216,7 +216,7 @@ func TestRunAnalysisSkipSave(t *testing.T) {
 	require.Equal(t, int64(0), count)
 }
 
-func TestRunAnalysisReturnsErrorWhenTotalCostScanFails(t *testing.T) {
+func TestRunAnalysisReturnsErrorWhenTotalsScanFails(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.Exec(`CREATE TABLE cost_records (id INTEGER PRIMARY KEY, date DATETIME)`).Error)
@@ -227,10 +227,10 @@ func TestRunAnalysisReturnsErrorWhenTotalCostScanFails(t *testing.T) {
 	svc := services.NewAnalysisService(db)
 	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "failed to get total cost")
+	require.ErrorContains(t, err, "failed to get cost totals")
 }
 
-func TestRunAnalysisReturnsErrorWhenUntaggedCostScanFails(t *testing.T) {
+func TestRunAnalysisReturnsErrorWhenTotalsScanFailsMissingTags(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.Exec(`CREATE TABLE cost_records (id INTEGER PRIMARY KEY, date DATETIME, cost REAL)`).Error)
@@ -241,7 +241,7 @@ func TestRunAnalysisReturnsErrorWhenUntaggedCostScanFails(t *testing.T) {
 	svc := services.NewAnalysisService(db)
 	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "failed to get untagged cost")
+	require.ErrorContains(t, err, "failed to get cost totals")
 }
 
 func TestRunAnalysisReturnsErrorWhenGetTopCostsFails(t *testing.T) {
