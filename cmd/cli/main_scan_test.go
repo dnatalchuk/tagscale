@@ -97,6 +97,12 @@ func TestParseDateRangeInvertedRange(t *testing.T) {
 	require.Contains(t, err.Error(), "start date")
 }
 
+func TestParseDateRangeTooManyParts(t *testing.T) {
+	_, _, err := parseDateRange("2023-01-01:2023-01-02:2023-01-03")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected start[:end]")
+}
+
 func TestScanTimeoutFlag(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")

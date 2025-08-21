@@ -199,7 +199,7 @@ func NewCLI() *cobra.Command {
 		},
 	}
 
-	scanCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
+	scanCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or start:end in YYYY-MM-DD format (end optional)")
 	scanCmd.Flags().IntVar(&timeout, "timeout", cfg.AWSRequestTimeout, "AWS request timeout in seconds (must be > 0)")
 
 	// SUMMARY command
@@ -226,7 +226,7 @@ func NewCLI() *cobra.Command {
 
 	summaryCmd.Flags().IntVar(&limit, "limit", 5, "Limit number of results (must be > 0)")
 	summaryCmd.Flags().StringSliceVar(&groupBy, "group-by", []string{"service"}, "Group costs by: service, account, region, or team")
-	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or YYYY-MM-DD[:YYYY-MM-DD]")
+	summaryCmd.Flags().StringVar(&dateRange, "range", "30", "Date range: N (days) or start:end in YYYY-MM-DD format (end optional)")
 
 	completionCmd := &cobra.Command{
 		Use:       "completion [bash|zsh|fish|powershell]",
@@ -342,6 +342,10 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	}
 
 	parts := strings.Split(rangeStr, ":")
+	if len(parts) > 2 {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid date range %q: expected start[:end]", rangeStr)
+	}
+
 	start, err := time.ParseInLocation("2006-01-02", parts[0], time.UTC)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid start date: %w", err)
