@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
@@ -258,6 +259,45 @@ func TestCollectCostDataCustomBatchSize(t *testing.T) {
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
 	require.Len(t, recs, 2)
+}
+
+func TestCollectCostDataInvalidTagValue(t *testing.T) {
+	db := setupDB(t)
+	invalidTag := string([]byte{0xff, 0xfe, 0xfd})
+	output := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-01"), End: aws.String("2023-01-02")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonEC2", "123456789012", "us-east-1", "i-abc123", invalidTag},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("5"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	originalMarshal := services.JSONMarshal
+	defer func() { services.JSONMarshal = originalMarshal }()
+	services.JSONMarshal = func(v interface{}) ([]byte, error) {
+		m := v.(map[string]string)
+		for _, val := range m {
+			if !utf8.ValidString(val) {
+				return nil, fmt.Errorf("invalid UTF-8 in string")
+			}
+		}
+		return json.Marshal(v)
+	}
+
+	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to marshal tags")
 }
 
 func TestCollectCostDataTimeout(t *testing.T) {
