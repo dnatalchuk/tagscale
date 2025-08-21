@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -43,7 +44,7 @@ func TestInferTeamOwnershipRegex(t *testing.T) {
 	require.NoError(t, db.Create(&mappings).Error)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
+	results := svc.InferTeamOwnership(context.Background(), now.Add(-time.Hour), now.Add(time.Hour))
 
 	// Convert results to map for easy lookup
 	costs := make(map[string]float64)
@@ -72,7 +73,7 @@ func TestInferTeamOwnershipTagExact(t *testing.T) {
 	require.NoError(t, db.Create(&mappings).Error)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
+	results := svc.InferTeamOwnership(context.Background(), now.Add(-time.Hour), now.Add(time.Hour))
 
 	costs := make(map[string]float64)
 	for _, r := range results {
@@ -98,7 +99,7 @@ func TestInferTeamOwnershipTagPartial(t *testing.T) {
 	require.NoError(t, db.Create(&mappings).Error)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
+	results := svc.InferTeamOwnership(context.Background(), now.Add(-time.Hour), now.Add(time.Hour))
 
 	costs := make(map[string]float64)
 	for _, r := range results {
@@ -128,7 +129,7 @@ func TestInferTeamOwnershipLargeDataset(t *testing.T) {
 	runtime.ReadMemStats(&before)
 
 	svc := services.NewAnalysisService(db)
-	results := svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
+	results := svc.InferTeamOwnership(context.Background(), now.Add(-time.Hour), now.Add(time.Hour))
 
 	runtime.GC()
 	var after runtime.MemStats
@@ -177,7 +178,7 @@ func BenchmarkInferTeamOwnership(b *testing.B) {
 	svc := services.NewAnalysisService(db)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		svc.InferTeamOwnership(now.Add(-time.Hour), now.Add(time.Hour))
+		svc.InferTeamOwnership(context.Background(), now.Add(-time.Hour), now.Add(time.Hour))
 	}
 }
 
@@ -192,7 +193,7 @@ func TestRunAnalysisHonorsRange(t *testing.T) {
 	require.NoError(t, db.Create(&recs).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err := svc.RunAnalysis(5, now.AddDate(0, 0, -7), now, []string{"service", "account", "region", "team"}, true)
+	_, err := svc.RunAnalysis(context.Background(), 5, now.AddDate(0, 0, -7), now, []string{"service", "account", "region", "team"}, true)
 	require.NoError(t, err)
 
 	var analysis models.CostAnalysis
@@ -208,7 +209,7 @@ func TestRunAnalysisSkipSave(t *testing.T) {
 	require.NoError(t, db.Create(&rec).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
+	_, err := svc.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.NoError(t, err)
 
 	var count int64
@@ -225,7 +226,7 @@ func TestRunAnalysisReturnsErrorWhenTotalsScanFails(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date) VALUES (?)`, now).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
+	_, err = svc.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get cost totals")
 }
@@ -239,7 +240,7 @@ func TestRunAnalysisReturnsErrorWhenTotalsScanFailsMissingTags(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date, cost) VALUES (?, 1)`, now).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, false)
+	_, err = svc.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now, []string{"service"}, false)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get cost totals")
 }
@@ -253,7 +254,7 @@ func TestRunAnalysisReturnsErrorWhenGetTopCostsFails(t *testing.T) {
 	require.NoError(t, db.Exec(`INSERT INTO cost_records (date, cost, tags) VALUES (?, ?, '{}')`, now, 1).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err = svc.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service"}, true)
+	_, err = svc.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service"}, true)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "failed to get top services")
 }
@@ -266,7 +267,7 @@ func TestRunAnalysisReturnsErrorWhenMarshalFails(t *testing.T) {
 	require.NoError(t, db.Create(&rec).Error)
 
 	svc := services.NewAnalysisService(db)
-	_, err := svc.RunAnalysis(5, now.Add(-time.Hour), now, []string{"service"}, true)
+	_, err := svc.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now, []string{"service"}, true)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "marshal top services")
 }
@@ -344,14 +345,14 @@ type fakeAnalysisService struct {
 	delay time.Duration
 }
 
-func (f *fakeAnalysisService) GetTopCosts(limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {
+func (f *fakeAnalysisService) GetTopCosts(ctx context.Context, limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {
 	time.Sleep(f.delay)
 	return []models.CostSummary{}, nil
 }
 
-func (f *fakeAnalysisService) RunAnalysisSequential(limit int, startDate, endDate time.Time, groupBy []string, save bool) (services.AnalysisResult, error) {
+func (f *fakeAnalysisService) RunAnalysisSequential(ctx context.Context, limit int, startDate, endDate time.Time, groupBy []string, save bool) (services.AnalysisResult, error) {
 	for _, gb := range groupBy {
-		if _, err := f.GetTopCosts(limit, gb, startDate, endDate); err != nil {
+		if _, err := f.GetTopCosts(ctx, limit, gb, startDate, endDate); err != nil {
 			return services.AnalysisResult{}, err
 		}
 	}
@@ -370,7 +371,7 @@ func TestRunAnalysisFetchesTopCostsConcurrently(t *testing.T) {
 	fake := &fakeAnalysisService{AnalysisService: baseSvc, delay: 100 * time.Millisecond}
 
 	start := time.Now()
-	_, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false)
+	_, err := fake.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false)
 	require.NoError(t, err)
 	elapsed := time.Since(start)
 
@@ -398,7 +399,7 @@ func BenchmarkRunAnalysisConcurrent(b *testing.B) {
 
 	b.Run("sequential", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err := fake.RunAnalysisSequential(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false); err != nil {
+			if _, err := fake.RunAnalysisSequential(context.Background(), 5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false); err != nil {
 				b.Fatalf("sequential run: %v", err)
 			}
 		}
@@ -406,7 +407,7 @@ func BenchmarkRunAnalysisConcurrent(b *testing.B) {
 
 	b.Run("concurrent", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if _, err := fake.RunAnalysis(5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false); err != nil {
+			if _, err := fake.RunAnalysis(context.Background(), 5, now.Add(-time.Hour), now.Add(time.Hour), []string{"service", "account", "region"}, false); err != nil {
 				b.Fatalf("concurrent run: %v", err)
 			}
 		}

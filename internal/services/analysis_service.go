@@ -2,6 +2,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -42,7 +43,7 @@ func NewAnalysisService(db *gorm.DB) *AnalysisService {
 	return &AnalysisService{db: db}
 }
 
-func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, groupBy []string, save bool) (AnalysisResult, error) {
+func (s *AnalysisService) RunAnalysis(ctx context.Context, limit int, startDate, endDate time.Time, groupBy []string, save bool) (AnalysisResult, error) {
 	var result AnalysisResult
 
 	// Get total and untagged costs in a single query
@@ -50,7 +51,7 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, g
 		Total    float64
 		Untagged float64
 	}
-	db := s.db.Model(&models.CostRecord{}).
+	db := s.db.WithContext(ctx).Model(&models.CostRecord{}).
 		Where("date >= ? AND date <= ?", startDate, endDate).
 		Select("SUM(cost) AS total, SUM(CASE WHEN tags='' OR tags='{}' THEN cost END) AS untagged").
 		Scan(&totals)
@@ -80,7 +81,7 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, g
 		switch gb {
 		case "service", "account", "region":
 			g.Go(func() error {
-				top, err := s.GetTopCosts(limit, gb, startDate, endDate)
+				top, err := s.GetTopCosts(ctx, limit, gb, startDate, endDate)
 				if err != nil {
 					var label string
 					switch gb {
@@ -115,7 +116,7 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, g
 	// Infer team ownership if requested
 	for _, gb := range groupBy {
 		if gb == "team" {
-			costByTeam = s.InferTeamOwnership(startDate, endDate)
+			costByTeam = s.InferTeamOwnership(ctx, startDate, endDate)
 			sort.Slice(costByTeam, func(i, j int) bool { return costByTeam[i].TotalCost > costByTeam[j].TotalCost })
 			if len(costByTeam) > limit {
 				costByTeam = costByTeam[:limit]
@@ -175,17 +176,17 @@ func (s *AnalysisService) RunAnalysis(limit int, startDate, endDate time.Time, g
 		Insights:        string(insightsJSON),
 	}
 
-	if err := s.db.Create(&analysis).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&analysis).Error; err != nil {
 		return AnalysisResult{}, fmt.Errorf("failed to save analysis: %w", err)
 	}
 
 	return result, nil
 }
 
-func (s *AnalysisService) GetTopCosts(limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {
+func (s *AnalysisService) GetTopCosts(ctx context.Context, limit int, groupBy string, startDate, endDate time.Time) ([]models.CostSummary, error) {
 	var results []models.CostSummary
 
-	query := s.db.Model(&models.CostRecord{}).
+	query := s.db.WithContext(ctx).Model(&models.CostRecord{}).
 		Select(fmt.Sprintf("%s, SUM(cost) as total_cost", groupBy)).
 		Where("date >= ? AND date <= ?", startDate, endDate).
 		Group(groupBy).
@@ -199,10 +200,10 @@ func (s *AnalysisService) GetTopCosts(limit int, groupBy string, startDate, endD
 	return results, nil
 }
 
-func (s *AnalysisService) InferTeamOwnership(startDate, endDate time.Time) []models.CostSummary {
+func (s *AnalysisService) InferTeamOwnership(ctx context.Context, startDate, endDate time.Time) []models.CostSummary {
 	// Get team mappings ordered by priority so higher priority mappings win
 	var teamMappings []models.TeamMapping
-	s.db.Order("priority DESC").Find(&teamMappings)
+	s.db.WithContext(ctx).Order("priority DESC").Find(&teamMappings)
 
 	var simpleIDs []uint
 	compiled := make([]compiledTeamMapping, 0, len(teamMappings))
@@ -250,7 +251,7 @@ WHERE cr.date >= ? AND cr.date <= ?
 GROUP BY team`
 
 		var sqlResults []models.CostSummary
-		if err := s.db.Raw(query, simpleIDs, startDate, endDate).Scan(&sqlResults).Error; err == nil {
+		if err := s.db.WithContext(ctx).Raw(query, simpleIDs, startDate, endDate).Scan(&sqlResults).Error; err == nil {
 			for _, r := range sqlResults {
 				teamCosts[r.Team] += r.TotalCost
 			}
@@ -258,7 +259,7 @@ GROUP BY team`
 	} else {
 		// No simple mappings, calculate total cost for unassigned baseline
 		var total float64
-		s.db.Model(&models.CostRecord{}).
+		s.db.WithContext(ctx).Model(&models.CostRecord{}).
 			Where("date >= ? AND date <= ?", startDate, endDate).
 			Select("SUM(cost)").Scan(&total)
 		teamCosts["unassigned"] = total
@@ -277,10 +278,10 @@ NOT EXISTS (
         (tm.pattern_type = 'tag' AND EXISTS (SELECT 1 FROM json_each(cost_records.tags) WHERE value = tm.pattern))
     )
 )`
-			s.db.Where("date >= ? AND date <= ?", startDate, endDate).
+			s.db.WithContext(ctx).Where("date >= ? AND date <= ?", startDate, endDate).
 				Where(sub, simpleIDs).Find(&remaining)
 		} else {
-			s.db.Where("date >= ? AND date <= ?", startDate, endDate).Find(&remaining)
+			s.db.WithContext(ctx).Where("date >= ? AND date <= ?", startDate, endDate).Find(&remaining)
 		}
 
 		for _, record := range remaining {

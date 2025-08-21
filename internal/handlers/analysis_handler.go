@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"tagscale/internal/services"
@@ -29,14 +30,15 @@ func (h *AnalysisHandler) GetLatestAnalysis(c *gin.Context) {
 }
 
 func (h *AnalysisHandler) RunAnalysis(c *gin.Context) {
-	go func() {
+	ctx := c.Request.Context()
+	go func(ctx context.Context) {
 		end := time.Now()
 		start := end.AddDate(0, 0, -30)
 		groups := []string{"service", "account", "region", "team"}
-		if _, err := h.analysisService.RunAnalysis(5, start, end, groups, true); err != nil {
+		if _, err := h.analysisService.RunAnalysis(ctx, 5, start, end, groups, true); err != nil {
 			log.Printf("analysis run failed: %v", err)
 		}
-	}()
+	}(ctx)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Analysis started"})
 }
