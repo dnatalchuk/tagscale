@@ -62,7 +62,7 @@ func (h *CostHandler) GetTopCosts(c *gin.Context) {
 	}
 
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
+	if err != nil || limit <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit parameter"})
 		return
 	}

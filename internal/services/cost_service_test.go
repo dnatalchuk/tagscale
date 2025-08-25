@@ -420,6 +420,24 @@ func TestGetTopCostsContextCanceled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestGetTopCostsZeroLimit(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(nil, db)
+
+	_, err := svc.GetTopCosts(context.Background(), 0, "service")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "limit must be positive")
+}
+
+func TestGetTopCostsNegativeLimit(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(nil, db)
+
+	_, err := svc.GetTopCosts(context.Background(), -5, "service")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "limit must be positive")
+}
+
 func TestRunAnalysis(t *testing.T) {
 	db := setupDB(t)
 	today := time.Now().Truncate(24 * time.Hour)
