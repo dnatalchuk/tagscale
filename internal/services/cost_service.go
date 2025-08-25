@@ -187,6 +187,9 @@ func (s *CostService) GetCostSummary(ctx context.Context, startDate, endDate tim
 }
 
 func (s *CostService) GetTopCosts(ctx context.Context, limit int, groupBy string) ([]models.CostSummary, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("limit must be positive")
+	}
 	if !IsGroupByAllowed(groupBy) {
 		return nil, fmt.Errorf("invalid group by field")
 	}

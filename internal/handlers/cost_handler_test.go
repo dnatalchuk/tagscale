@@ -57,6 +57,36 @@ func TestGetTopCostsInvalidGroupBy(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestGetTopCostsZeroLimit(t *testing.T) {
+	service := setupCostService(t)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/costs/top", handler.GetTopCosts)
+
+	req, _ := http.NewRequest(http.MethodGet, "/costs/top?limit=0&group_by=service", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetTopCostsNegativeLimit(t *testing.T) {
+	service := setupCostService(t)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/costs/top", handler.GetTopCosts)
+
+	req, _ := http.NewRequest(http.MethodGet, "/costs/top?limit=-5&group_by=service", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestCollectCostsInvalidDays(t *testing.T) {
 	service := setupCostService(t)
 	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
