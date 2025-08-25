@@ -109,7 +109,12 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 				costAmount := 0.0
 				if metric, ok := group.Metrics["BlendedCost"]; ok {
 					if amount := metric.Amount; amount != nil {
-						costAmount, _ = strconv.ParseFloat(*amount, 64)
+						var parseErr error
+						costAmount, parseErr = strconv.ParseFloat(*amount, 64)
+						if parseErr != nil {
+							cancel()
+							return fmt.Errorf("failed to parse cost amount %q: %w", *amount, parseErr)
+						}
 					}
 				}
 
