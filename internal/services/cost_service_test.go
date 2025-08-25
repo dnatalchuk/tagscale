@@ -90,6 +90,16 @@ func (m *streamingMockAWSClient) GetCostAndUsage(ctx context.Context, startDate,
 	return out, nil
 }
 
+type malformedAmountMockAWSClient struct {
+	output      *costexplorer.GetCostAndUsageOutput
+	capturedCtx context.Context
+}
+
+func (m *malformedAmountMockAWSClient) GetCostAndUsage(ctx context.Context, startDate, endDate time.Time, nextToken *string) (*costexplorer.GetCostAndUsageOutput, error) {
+	m.capturedCtx = ctx
+	return m.output, nil
+}
+
 func setupDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
@@ -298,6 +308,42 @@ func TestCollectCostDataInvalidTagValue(t *testing.T) {
 	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to marshal tags")
+}
+
+func TestCollectCostDataMalformedAmount(t *testing.T) {
+	db := setupDB(t)
+	output := &costexplorer.GetCostAndUsageOutput{
+		ResultsByTime: []types.ResultByTime{
+			{
+				TimePeriod: &types.DateInterval{Start: aws.String("2023-01-01"), End: aws.String("2023-01-02")},
+				Groups: []types.Group{
+					{
+						Keys: []string{"AmazonEC2", "123456789012", "us-east-1"},
+						Metrics: map[string]types.MetricValue{
+							"BlendedCost": {Amount: aws.String("not-a-number"), Unit: aws.String("USD")},
+						},
+					},
+				},
+			},
+		},
+	}
+	mock := &malformedAmountMockAWSClient{output: output}
+	svc := services.NewCostService(mock, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to parse cost amount")
+
+	select {
+	case <-mock.capturedCtx.Done():
+	default:
+		t.Fatalf("expected context to be canceled")
+	}
+
+	var recs []models.CostRecord
+	require.NoError(t, db.Find(&recs).Error)
+	require.Len(t, recs, 0)
 }
 
 func TestCollectCostDataTimeout(t *testing.T) {
