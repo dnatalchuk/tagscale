@@ -328,6 +328,7 @@ func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeS
 }
 
 func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
+	rangeStr = strings.TrimSpace(rangeStr)
 	now := time.Now().UTC().Truncate(24 * time.Hour)
 	if rangeStr == "" {
 		return now.AddDate(0, 0, -30), now, nil
@@ -344,6 +345,10 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 	parts := strings.Split(rangeStr, ":")
 	if len(parts) > 2 {
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid date range %q: expected start[:end]", rangeStr)
+	}
+
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
 	}
 
 	start, err := time.ParseInLocation("2006-01-02", parts[0], time.UTC)
