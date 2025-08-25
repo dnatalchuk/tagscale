@@ -379,6 +379,18 @@ func runSummary(cmd *cobra.Command, cfg *config.Config, rangeStr string, useDB, 
 		return errorf(output, "Invalid range: %w", err)
 	}
 
+	// Remove duplicate group-by options while preserving order
+	seen := make(map[string]struct{}, len(groupBy))
+	uniqueGroupBy := make([]string, 0, len(groupBy))
+	for _, g := range groupBy {
+		if _, ok := seen[g]; ok {
+			continue
+		}
+		seen[g] = struct{}{}
+		uniqueGroupBy = append(uniqueGroupBy, g)
+	}
+	groupBy = uniqueGroupBy
+
 	if output == "table" && !quiet && !silent {
 		if verbose {
 			fmt.Fprintf(cmd.OutOrStdout(), "📊 Running TagScale summary from %s to %s grouped by %s (limit %d)...\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), strings.Join(groupBy, ", "), limit)

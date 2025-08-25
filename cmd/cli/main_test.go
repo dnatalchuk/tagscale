@@ -434,6 +434,34 @@ func TestRunSummaryMultipleGroups(t *testing.T) {
 	require.Contains(t, output, "Top Accounts:")
 }
 
+func TestRunSummaryRemovesDuplicateGroups(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.CostAnalysis{}, &models.TeamMapping{}))
+
+	yesterday := time.Now().AddDate(0, 0, -1)
+	rec := models.CostRecord{Date: yesterday, Service: "AmazonEC2", Account: "1111", Region: "us-east-1", Cost: 100, Tags: "{}", ResourceID: "i-1"}
+	require.NoError(t, db.Create(&rec).Error)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	groups := []string{"service", "region", "service"}
+	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", groups, 5, false, false, false))
+
+	output := buf.String()
+	require.Equal(t, 1, strings.Count(output, "Top Services:"))
+	require.Equal(t, 1, strings.Count(output, "Top Regions:"))
+}
+
 func TestRunSummaryHonorsRange(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
