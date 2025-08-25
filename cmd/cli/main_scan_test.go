@@ -103,6 +103,21 @@ func TestParseDateRangeTooManyParts(t *testing.T) {
 	require.Contains(t, err.Error(), "expected start[:end]")
 }
 
+func TestParseDateRangeDaysWithSpaces(t *testing.T) {
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	start, end, err := parseDateRange(" 7 ")
+	require.NoError(t, err)
+	require.Equal(t, now.AddDate(0, 0, -7), start)
+	require.Equal(t, now, end)
+}
+
+func TestParseDateRangeRangeWithSpaces(t *testing.T) {
+	start, end, err := parseDateRange(" 2023-01-01 : 2023-01-02 ")
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), start)
+	require.Equal(t, time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC), end)
+}
+
 func TestScanTimeoutFlag(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
