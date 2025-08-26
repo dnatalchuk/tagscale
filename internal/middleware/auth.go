@@ -25,6 +25,18 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 		return nil, fmt.Errorf("API key is required unless ALLOW_NO_AUTH is set")
 	}
 
+	decodedHashes := make([][]byte, 0, len(apiKeyHashes))
+	for _, h := range apiKeyHashes {
+		b, err := hex.DecodeString(h)
+		if err != nil {
+			return nil, fmt.Errorf("invalid API key hash: %w", err)
+		}
+		if len(b) != sha256.Size {
+			return nil, fmt.Errorf("invalid API key hash length: %d", len(b))
+		}
+		decodedHashes = append(decodedHashes, b)
+	}
+
 	return func(c *gin.Context) {
 
 		// Normalize whitespace to ensure consistent parsing of the auth header.
@@ -50,7 +62,6 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 		token := parts[1]
 		// Precompute hash of token for hashed comparison.
 		hash := sha256.Sum256([]byte(token))
-		tokenHash := hex.EncodeToString(hash[:])
 
 		// Check token against all configured keys using constant time comparison.
 		match := false
@@ -59,8 +70,8 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 				match = true
 			}
 		}
-		for _, h := range apiKeyHashes {
-			if subtle.ConstantTimeCompare([]byte(tokenHash), []byte(h)) == 1 {
+		for _, h := range decodedHashes {
+			if subtle.ConstantTimeCompare(hash[:], h) == 1 {
 				match = true
 			}
 		}
