@@ -43,6 +43,11 @@ func (h *CostHandler) GetCostSummary(c *gin.Context) {
 		return
 	}
 
+	if endDate.Before(startDate) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "end_date must be after start_date"})
+		return
+	}
+
 	summary, err := h.costService.GetCostSummary(c.Request.Context(), startDate, endDate, groupBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

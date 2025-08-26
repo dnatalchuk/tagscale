@@ -396,6 +396,14 @@ func TestGetCostSummary(t *testing.T) {
 	require.InDelta(t, 66.6, results[0].Percentage, 1)
 }
 
+func TestGetCostSummaryInvertedRange(t *testing.T) {
+	db := setupDB(t)
+	svc := services.NewCostService(nil, db)
+	_, err := svc.GetCostSummary(context.Background(), time.Now(), time.Now().Add(-time.Hour), "service")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "end date must be after start date")
+}
+
 func TestGetCostSummaryContextCanceled(t *testing.T) {
 	db := setupDB(t)
 	svc := services.NewCostService(nil, db)
