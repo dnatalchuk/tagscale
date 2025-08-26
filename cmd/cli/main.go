@@ -366,6 +366,10 @@ func parseDateRange(rangeStr string) (time.Time, time.Time, error) {
 		end = now
 	}
 
+	if end.After(now) {
+		end = now
+	}
+
 	if end.Before(start) {
 		return time.Time{}, time.Time{}, fmt.Errorf("start date %s is after end date %s", start.Format("2006-01-02"), end.Format("2006-01-02"))
 	}
