@@ -158,6 +158,9 @@ func (s *CostService) GetCostSummary(ctx context.Context, startDate, endDate tim
 	if !IsGroupByAllowed(groupBy) {
 		return nil, fmt.Errorf("invalid group by field")
 	}
+	if endDate.Before(startDate) {
+		return nil, fmt.Errorf("end date must be after start date")
+	}
 
 	var results []models.CostSummary
 

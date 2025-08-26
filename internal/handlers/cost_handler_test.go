@@ -42,6 +42,21 @@ func TestGetCostSummaryInvalidGroupBy(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestGetCostSummaryInvertedRange(t *testing.T) {
+	service := setupCostService(t)
+	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/costs/summary", handler.GetCostSummary)
+
+	req, _ := http.NewRequest(http.MethodGet, "/costs/summary?start_date=2023-01-02&end_date=2023-01-01&group_by=service", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestGetTopCostsInvalidGroupBy(t *testing.T) {
 	service := setupCostService(t)
 	handler := handlers.NewCostHandler(service, &config.Config{AWSRequestTimeout: 30, CostBatchSize: 100})
