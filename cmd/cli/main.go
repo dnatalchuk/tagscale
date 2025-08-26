@@ -468,6 +468,10 @@ func printAnalysis(w io.Writer, result services.AnalysisResult, groupBy []string
 			title = "Top Services"
 		}
 
+		if len(items) == 0 {
+			continue
+		}
+
 		fmt.Fprintf(w, "\n%s:\n", title)
 		for _, s := range items {
 			label := s.Service
