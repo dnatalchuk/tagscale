@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -60,7 +61,7 @@ func TestAuthMiddlewareHashedTokens(t *testing.T) {
 
 	h1 := sha256.Sum256([]byte("secret1"))
 	h2 := sha256.Sum256([]byte("secret2"))
-	hashes := []string{hex.EncodeToString(h1[:]), hex.EncodeToString(h2[:])}
+	hashes := []string{strings.ToUpper(hex.EncodeToString(h1[:])), strings.ToUpper(hex.EncodeToString(h2[:]))}
 
 	tests := []struct {
 		name     string
