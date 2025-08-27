@@ -18,6 +18,12 @@ import (
 
 type AnalysisService struct {
 	db *gorm.DB
+	// compiledMappings caches compiled regular expressions for TeamMapping
+	// entries that require regex evaluation. The key is the TeamMapping ID.
+	compiledMappings map[uint]*regexp.Regexp
+	// compiledPatterns tracks the pattern string used for each compiled regexp
+	// to allow cache invalidation when mappings change.
+	compiledPatterns map[uint]string
 }
 
 // compiledTeamMapping augments TeamMapping with a compiled regex pattern
@@ -200,10 +206,60 @@ func (s *AnalysisService) GetTopCosts(ctx context.Context, limit int, groupBy st
 	return results, nil
 }
 
+// updateCompiledMappings ensures that the compiled regex cache reflects the
+// provided list of TeamMappings. It compiles new patterns and removes entries
+// that no longer exist or whose pattern has changed.
+func (s *AnalysisService) updateCompiledMappings(mappings []models.TeamMapping) {
+	if s.compiledMappings == nil {
+		s.compiledMappings = make(map[uint]*regexp.Regexp)
+		s.compiledPatterns = make(map[uint]string)
+	}
+
+	existing := make(map[uint]struct{}, len(mappings))
+	for _, m := range mappings {
+		existing[m.ID] = struct{}{}
+
+		var needsRegex bool
+		switch m.PatternType {
+		case "service":
+			needsRegex = isRegex(m.Pattern)
+		case "resource_name":
+			needsRegex = true
+		default:
+			needsRegex = false
+		}
+
+		if needsRegex {
+			if p, ok := s.compiledPatterns[m.ID]; !ok || p != m.Pattern {
+				if re, err := regexp.Compile(m.Pattern); err == nil {
+					s.compiledMappings[m.ID] = re
+					s.compiledPatterns[m.ID] = m.Pattern
+				} else {
+					delete(s.compiledMappings, m.ID)
+					delete(s.compiledPatterns, m.ID)
+				}
+			}
+		} else {
+			delete(s.compiledMappings, m.ID)
+			delete(s.compiledPatterns, m.ID)
+		}
+	}
+
+	for id := range s.compiledMappings {
+		if _, ok := existing[id]; !ok {
+			delete(s.compiledMappings, id)
+			delete(s.compiledPatterns, id)
+		}
+	}
+}
+
 func (s *AnalysisService) InferTeamOwnership(ctx context.Context, startDate, endDate time.Time) []models.CostSummary {
 	// Get team mappings ordered by priority so higher priority mappings win
 	var teamMappings []models.TeamMapping
 	s.db.WithContext(ctx).Order("priority DESC").Find(&teamMappings)
+
+	// Update or populate the compiled regex cache based on current mappings
+	s.updateCompiledMappings(teamMappings)
 
 	var simpleIDs []uint
 	compiled := make([]compiledTeamMapping, 0, len(teamMappings))
@@ -212,17 +268,13 @@ func (s *AnalysisService) InferTeamOwnership(ctx context.Context, startDate, end
 		switch m.PatternType {
 		case "service":
 			if isRegex(m.Pattern) {
-				if re, err := regexp.Compile(m.Pattern); err == nil {
-					cm.pattern = re
-				}
+				cm.pattern = s.compiledMappings[m.ID]
 				compiled = append(compiled, cm)
 			} else {
 				simpleIDs = append(simpleIDs, m.ID)
 			}
 		case "resource_name":
-			if re, err := regexp.Compile(m.Pattern); err == nil {
-				cm.pattern = re
-			}
+			cm.pattern = s.compiledMappings[m.ID]
 			compiled = append(compiled, cm)
 		case "tag":
 			simpleIDs = append(simpleIDs, m.ID)
