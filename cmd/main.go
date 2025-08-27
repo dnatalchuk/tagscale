@@ -103,7 +103,7 @@ func startBackgroundWorkers(ctx context.Context, costService *services.CostServi
 				log.Println("Starting cost data collection...")
 				end := time.Now()
 				start := end.AddDate(0, 0, -30)
-				if err := costService.CollectCostData(ctx, start, end, time.Duration(cfg.AWSRequestTimeout)*time.Second, cfg.CostBatchSize); err != nil {
+				if _, err := costService.CollectCostData(ctx, start, end, time.Duration(cfg.AWSRequestTimeout)*time.Second, cfg.CostBatchSize); err != nil {
 					log.Printf("Cost data collection failed: %v", err)
 				}
 			case <-ctx.Done():

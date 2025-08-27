@@ -86,6 +86,30 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	require.Equal(t, int64(1), count)
 }
 
+func TestRunScanNoDataWarning(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+
+	mockClient := &mockAWSClient{output: &costexplorer.GetCostAndUsageOutput{}}
+
+	origFactory := awsClientFactory
+	awsClientFactory = func(ctx context.Context, region, profile string) (services.CostExplorerAPI, error) {
+		return mockClient, nil
+	}
+	defer func() { awsClientFactory = origFactory }()
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.NoError(t, runScan(context.Background(), cmd, cfg, "1", false, true, dbPath, "", "", "table", 30, false, false, false))
+
+	require.Contains(t, buf.String(), "No cost data collected")
+}
+
 func TestParseDateRangeNegativeDays(t *testing.T) {
 	_, _, err := parseDateRange("-5")
 	require.EqualError(t, err, "days must be non-negative")
