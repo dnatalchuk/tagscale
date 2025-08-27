@@ -301,7 +301,7 @@ func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeS
 	// Run cost collection
 	costService := services.NewCostService(awsClient, db)
 
-	err = costService.CollectCostData(ctx, startDate, endDate, time.Duration(timeout)*time.Second, cfg.CostBatchSize)
+	count, err := costService.CollectCostData(ctx, startDate, endDate, time.Duration(timeout)*time.Second, cfg.CostBatchSize)
 	if err != nil {
 		return errorf(output, "Cost data collection failed: %w", err)
 	}
@@ -315,12 +315,24 @@ func runScan(ctx context.Context, cmd *cobra.Command, cfg *config.Config, rangeS
 			return nil
 		}
 	} else if output == "json" {
-		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"message": "cost data collected"})
+		msg := "cost data collected"
+		if count == 0 {
+			msg = "no cost data found"
+		}
+		_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"message": msg})
 	} else {
-		if verbose {
-			fmt.Fprintf(cmd.OutOrStdout(), "✅ Cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+		if count == 0 {
+			if verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "⚠️ No cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "⚠️ No cost data collected.")
+			}
 		} else {
-			fmt.Fprintln(cmd.OutOrStdout(), "✅ Cost data collected.")
+			if verbose {
+				fmt.Fprintf(cmd.OutOrStdout(), "✅ Cost data collected from %s to %s.\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "✅ Cost data collected.")
+			}
 		}
 	}
 

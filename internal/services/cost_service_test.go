@@ -128,8 +128,9 @@ func TestCollectCostData(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
 	require.NoError(t, err)
+	require.Equal(t, 1, count)
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
@@ -180,7 +181,9 @@ func TestCollectCostDataPagination(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{page1, page2}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100))
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
@@ -226,7 +229,9 @@ func TestCollectCostDataStreaming(t *testing.T) {
 	svc := services.NewCostService(mock, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100))
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
 
 	// Ensure first page records were written before requesting the second page
 	require.Greater(t, mock.countBeforeSecondCall, int64(0))
@@ -264,11 +269,24 @@ func TestCollectCostDataCustomBatchSize(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Second, 1))
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 1)
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
 
 	var recs []models.CostRecord
 	require.NoError(t, db.Find(&recs).Error)
 	require.Len(t, recs, 2)
+}
+
+func TestCollectCostDataNoRecords(t *testing.T) {
+	db := setupDB(t)
+	output := &costexplorer.GetCostAndUsageOutput{}
+	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
+	start := time.Now().AddDate(0, 0, -1)
+	end := time.Now()
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
 }
 
 func TestCollectCostDataInvalidTagValue(t *testing.T) {
@@ -305,8 +323,9 @@ func TestCollectCostDataInvalidTagValue(t *testing.T) {
 	svc := services.NewCostService(&mockAWSClient{outputs: []*costexplorer.GetCostAndUsageOutput{output}}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
 	require.Error(t, err)
+	require.Equal(t, 0, count)
 	require.Contains(t, err.Error(), "failed to marshal tags")
 }
 
@@ -331,8 +350,9 @@ func TestCollectCostDataMalformedAmount(t *testing.T) {
 	svc := services.NewCostService(mock, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Second, 100)
 	require.Error(t, err)
+	require.Equal(t, 0, count)
 	require.Contains(t, err.Error(), "failed to parse cost amount")
 
 	select {
@@ -351,8 +371,9 @@ func TestCollectCostDataTimeout(t *testing.T) {
 	svc := services.NewCostService(&timeoutMockAWSClient{delay: 50 * time.Millisecond}, db)
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
-	err := svc.CollectCostData(context.Background(), start, end, 10*time.Millisecond, 100)
+	count, err := svc.CollectCostData(context.Background(), start, end, 10*time.Millisecond, 100)
 	require.Error(t, err)
+	require.Equal(t, 0, count)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
@@ -363,8 +384,9 @@ func TestCollectCostDataContextCanceled(t *testing.T) {
 	end := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := svc.CollectCostData(ctx, start, end, 30*time.Second, 100)
+	count, err := svc.CollectCostData(ctx, start, end, 30*time.Second, 100)
 	require.Error(t, err)
+	require.Equal(t, 0, count)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -375,7 +397,9 @@ func TestCollectCostDataPerRequestTimeout(t *testing.T) {
 	start := time.Now().AddDate(0, 0, -1)
 	end := time.Now()
 	// Timeout shorter than total duration but longer than each request
-	require.NoError(t, svc.CollectCostData(context.Background(), start, end, 30*time.Millisecond, 100))
+	count, err := svc.CollectCostData(context.Background(), start, end, 30*time.Millisecond, 100)
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
 	require.Equal(t, 2, client.call)
 }
 

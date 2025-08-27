@@ -66,17 +66,18 @@ func marshalTags(tagValue string) ([]byte, error) {
 // being canceled. A fresh context with the timeout is created for every
 // request so that the limit applies per request rather than for the entire
 // operation.
-func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate time.Time, timeout time.Duration, batchSize int) error {
+func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate time.Time, timeout time.Duration, batchSize int) (int, error) {
 	// Retrieve pages from Cost Explorer one at a time. After processing each
 	// page, insert its records before requesting the next page so that large
 	// result sets don't have to be held entirely in memory.
 	var nextToken *string
+	var totalInserted int
 	for {
 		reqCtx, cancel := context.WithTimeout(ctx, timeout)
 		result, err := s.awsClient.GetCostAndUsage(reqCtx, startDate, endDate, nextToken)
 		if err != nil {
 			cancel()
-			return fmt.Errorf("failed to get cost data: %w", err)
+			return 0, fmt.Errorf("failed to get cost data: %w", err)
 		}
 
 		var costRecords []models.CostRecord
@@ -107,7 +108,7 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 				tagsJSON, err := marshalTags(tagValue)
 				if err != nil {
 					cancel()
-					return fmt.Errorf("failed to marshal tags: %w", err)
+					return 0, fmt.Errorf("failed to marshal tags: %w", err)
 				}
 
 				costAmount := 0.0
@@ -117,7 +118,7 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 						costAmount, parseErr = strconv.ParseFloat(*amount, 64)
 						if parseErr != nil {
 							cancel()
-							return fmt.Errorf("failed to parse cost amount %q: %w", *amount, parseErr)
+							return 0, fmt.Errorf("failed to parse cost amount %q: %w", *amount, parseErr)
 						}
 					}
 				}
@@ -143,8 +144,9 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 			}
 			if err := s.db.WithContext(reqCtx).CreateInBatches(costRecords, batchSize).Error; err != nil {
 				cancel()
-				return fmt.Errorf("failed to insert cost records: %w", err)
+				return 0, fmt.Errorf("failed to insert cost records: %w", err)
 			}
+			totalInserted += len(costRecords)
 		}
 
 		cancel()
@@ -155,7 +157,7 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 		nextToken = result.NextPageToken
 	}
 
-	return nil
+	return totalInserted, nil
 }
 
 func (s *CostService) GetCostSummary(ctx context.Context, startDate, endDate time.Time, groupBy string) ([]models.CostSummary, error) {
