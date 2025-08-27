@@ -52,6 +52,14 @@ func NewCostService(awsClient CostExplorerAPI, db *gorm.DB) *CostService {
 	}
 }
 
+func marshalTags(tagValue string) ([]byte, error) {
+	if tagValue == "" {
+		return []byte("{}"), nil
+	}
+	tags := map[string]string{"Team": tagValue}
+	return JSONMarshal(tags)
+}
+
 // CollectCostData retrieves AWS cost data for the provided time range
 // and stores the results in the database.
 // The provided timeout controls how long each AWS API call may take before
@@ -96,11 +104,7 @@ func (s *CostService) CollectCostData(ctx context.Context, startDate, endDate ti
 					tagValue = group.Keys[4]
 				}
 
-				tags := make(map[string]string)
-				if tagValue != "" {
-					tags["Team"] = tagValue
-				}
-				tagsJSON, err := JSONMarshal(tags)
+				tagsJSON, err := marshalTags(tagValue)
 				if err != nil {
 					cancel()
 					return fmt.Errorf("failed to marshal tags: %w", err)
