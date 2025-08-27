@@ -42,7 +42,7 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 		// Normalize whitespace to ensure consistent parsing of the auth header.
 		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
 		if authHeader == "" {
-			log.Println("Warning: missing Authorization header")
+			log.Printf("Warning: missing Authorization header (ip=%s, path=%s)", c.ClientIP(), c.FullPath())
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
@@ -52,7 +52,7 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 		parts := strings.Fields(authHeader)
 		// Match the Bearer scheme case-insensitively to be RFC compliant.
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			log.Println("Warning: malformed Authorization header")
+			log.Printf("Warning: malformed Authorization header (ip=%s, path=%s)", c.ClientIP(), c.FullPath())
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
 			c.Abort()
@@ -76,7 +76,7 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 			}
 		}
 		if !match {
-			log.Println("Warning: invalid API key")
+			log.Printf("Warning: invalid API key (ip=%s, path=%s)", c.ClientIP(), c.FullPath())
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
 			c.Abort()

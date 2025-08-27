@@ -150,11 +150,14 @@ func TestAuthMiddlewareLogs(t *testing.T) {
 			if tc.header != "" {
 				req.Header.Set("Authorization", tc.header)
 			}
+			req.RemoteAddr = "1.2.3.4:5678"
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
 			require.Equal(t, http.StatusUnauthorized, w.Code)
 			require.Contains(t, buf.String(), tc.logMessage)
+			require.Contains(t, buf.String(), "ip=1.2.3.4")
+			require.Contains(t, buf.String(), "path=/")
 			for _, s := range tc.notInLog {
 				require.NotContains(t, buf.String(), s)
 			}
