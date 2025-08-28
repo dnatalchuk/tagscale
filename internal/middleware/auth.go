@@ -6,20 +6,25 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
+// Logger defines the subset of logging methods used by AuthMiddleware.
+// *slog.Logger satisfies this interface.
+type Logger interface {
+	Warn(msg string, args ...any)
+}
+
 // AuthMiddleware validates the Authorization header against a set of static API keys.
 // The Bearer scheme is matched in a case-insensitive manner.
 // Unauthorized responses include a `WWW-Authenticate: Bearer` header.
-func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (gin.HandlerFunc, error) {
+func AuthMiddleware(logger Logger, apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (gin.HandlerFunc, error) {
 	if len(apiKeys) == 0 && len(apiKeyHashes) == 0 {
 		if allowNoAuth {
-			log.Println("Warning: starting without API key; authentication disabled")
+			logger.Warn("starting without API key; authentication disabled")
 			return func(c *gin.Context) { c.Next() }, nil
 		}
 		return nil, fmt.Errorf("API key is required unless ALLOW_NO_AUTH is set")
@@ -42,7 +47,7 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 		// Normalize whitespace to ensure consistent parsing of the auth header.
 		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
 		if authHeader == "" {
-			log.Printf("Warning: missing Authorization header (ip=%s, path=%s)", c.ClientIP(), c.FullPath())
+			logger.Warn("missing Authorization header", "ip", c.ClientIP(), "path", c.FullPath())
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
@@ -52,7 +57,7 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 		parts := strings.Fields(authHeader)
 		// Match the Bearer scheme case-insensitively to be RFC compliant.
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			log.Printf("Warning: malformed Authorization header (ip=%s, path=%s)", c.ClientIP(), c.FullPath())
+			logger.Warn("malformed Authorization header", "ip", c.ClientIP(), "path", c.FullPath())
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
 			c.Abort()
@@ -76,7 +81,7 @@ func AuthMiddleware(apiKeys []string, apiKeyHashes []string, allowNoAuth bool) (
 			}
 		}
 		if !match {
-			log.Printf("Warning: invalid API key (ip=%s, path=%s)", c.ClientIP(), c.FullPath())
+			logger.Warn("invalid API key", "ip", c.ClientIP(), "path", c.FullPath())
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
 			c.Abort()
