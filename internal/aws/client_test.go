@@ -42,4 +42,5 @@ func TestGetCostAndUsageRequestsOnlyBlendedCost(t *testing.T) {
 	_, err := client.GetCostAndUsage(context.Background(), start, end, nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"BlendedCost"}, f.input.Metrics)
+	require.Equal(t, end.AddDate(0, 0, 1).Format("2006-01-02"), *f.input.TimePeriod.End)
 }
