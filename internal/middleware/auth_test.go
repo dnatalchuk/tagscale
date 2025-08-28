@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"log"
+	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,7 +38,8 @@ func TestAuthMiddlewareTokens(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			h, err := middleware.AuthMiddleware([]string{"secret1", "secret2"}, nil, false)
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			h, err := middleware.AuthMiddleware(logger, []string{"secret1", "secret2"}, nil, false)
 			require.NoError(t, err)
 			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -76,7 +79,8 @@ func TestAuthMiddlewareHashedTokens(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			router := gin.New()
-			h, err := middleware.AuthMiddleware(nil, hashes, false)
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			h, err := middleware.AuthMiddleware(logger, nil, hashes, false)
 			require.NoError(t, err)
 			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -100,13 +104,15 @@ func TestAuthMiddlewareNoAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("error when not allowed", func(t *testing.T) {
-		_, err := middleware.AuthMiddleware(nil, nil, false)
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		_, err := middleware.AuthMiddleware(logger, nil, nil, false)
 		require.Error(t, err)
 	})
 
 	t.Run("allow when explicitly permitted", func(t *testing.T) {
 		router := gin.New()
-		h, err := middleware.AuthMiddleware(nil, nil, true)
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		h, err := middleware.AuthMiddleware(logger, nil, nil, true)
 		require.NoError(t, err)
 		router.Use(h)
 		router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -128,20 +134,18 @@ func TestAuthMiddlewareLogs(t *testing.T) {
 		logMessage string
 		notInLog   []string
 	}{
-		{"missing header", "", "Warning: missing Authorization header", nil},
-		{"malformed header", "Token foo", "Warning: malformed Authorization header", nil},
-		{"invalid token", "Bearer wrong", "Warning: invalid API key", []string{"wrong"}},
+		{"missing header", "", "missing Authorization header", nil},
+		{"malformed header", "Token foo", "malformed Authorization header", nil},
+		{"invalid token", "Bearer wrong", "invalid API key", []string{"wrong"}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			orig := log.Writer()
-			log.SetOutput(&buf)
-			defer log.SetOutput(orig)
+			logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
 			router := gin.New()
-			h, err := middleware.AuthMiddleware([]string{"secret1"}, nil, false)
+			h, err := middleware.AuthMiddleware(logger, []string{"secret1"}, nil, false)
 			require.NoError(t, err)
 			router.Use(h)
 			router.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -155,11 +159,18 @@ func TestAuthMiddlewareLogs(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			require.Equal(t, http.StatusUnauthorized, w.Code)
-			require.Contains(t, buf.String(), tc.logMessage)
-			require.Contains(t, buf.String(), "ip=1.2.3.4")
-			require.Contains(t, buf.String(), "path=/")
+
+			lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+			require.Len(t, lines, 1)
+
+			var entry map[string]any
+			err = json.Unmarshal([]byte(lines[0]), &entry)
+			require.NoError(t, err)
+			require.Equal(t, tc.logMessage, entry["msg"])
+			require.Equal(t, "1.2.3.4", entry["ip"])
+			require.Equal(t, "/", entry["path"])
 			for _, s := range tc.notInLog {
-				require.NotContains(t, buf.String(), s)
+				require.NotContains(t, lines[0], s)
 			}
 		})
 	}
