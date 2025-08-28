@@ -132,6 +132,19 @@ func NewCLI() *cobra.Command {
 		verbose   bool
 	)
 
+	region = os.Getenv("TAGSCALE_REGION")
+	if region == "" {
+		region = os.Getenv("AWS_REGION")
+	}
+	profile = os.Getenv("TAGSCALE_PROFILE")
+	if profile == "" {
+		profile = os.Getenv("AWS_PROFILE")
+	}
+	output = os.Getenv("TAGSCALE_OUTPUT")
+	if output == "" {
+		output = "table"
+	}
+
 	cfg, err := configLoader()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
@@ -167,9 +180,9 @@ func NewCLI() *cobra.Command {
 	rootCmd.PersistentFlags().BoolVar(&useDB, "db", false, "Persist data using DATABASE_URL")
 	rootCmd.PersistentFlags().BoolVar(&migrate, "migrate", false, "Run database migrations on startup")
 	rootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "Path to SQLite DB file for persistence")
-	rootCmd.PersistentFlags().StringVar(&region, "region", os.Getenv("AWS_REGION"), "AWS region (default from AWS_REGION)")
-	rootCmd.PersistentFlags().StringVar(&profile, "profile", os.Getenv("AWS_PROFILE"), "AWS shared config profile (default from AWS_PROFILE)")
-	rootCmd.PersistentFlags().StringVar(&output, "output", "table", "Output format: table or json")
+	rootCmd.PersistentFlags().StringVar(&region, "region", region, "AWS region (default from TAGSCALE_REGION or AWS_REGION)")
+	rootCmd.PersistentFlags().StringVar(&profile, "profile", profile, "AWS shared config profile (default from TAGSCALE_PROFILE or AWS_PROFILE)")
+	rootCmd.PersistentFlags().StringVar(&output, "output", output, "Output format: table or json (default from TAGSCALE_OUTPUT or table)")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress progress output")
 	rootCmd.PersistentFlags().BoolVar(&silent, "silent", false, "Suppress all output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show verbose progress output")
