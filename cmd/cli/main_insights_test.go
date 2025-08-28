@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -12,6 +13,8 @@ import (
 
 func TestPrintAnalysisNoInsightsHeader(t *testing.T) {
 	result := services.AnalysisResult{
+		StartDate:       time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:         time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC),
 		TotalCost:       100,
 		UntaggedCost:    10,
 		UntaggedPercent: 10,

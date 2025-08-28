@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -493,4 +494,37 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 
 	require.Contains(t, output, "InRange")
 	require.NotContains(t, output, "OutRange")
+}
+
+func TestRunSummaryJSONIncludesDateRange(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "cli.db")
+	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
+	defer os.Unsetenv("DATABASE_URL")
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.CostRecord{}, &models.CostAnalysis{}, &models.TeamMapping{}))
+
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	rec := models.CostRecord{Date: now, Service: "AmazonEC2", Cost: 1, Tags: "{}"}
+	require.NoError(t, db.Create(&rec).Error)
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	require.NoError(t, runSummary(cmd, cfg, "1", true, true, "", "json", []string{"service"}, 5, false, false, false))
+
+	var result services.AnalysisResult
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+
+	start, end, err := parseDateRange("1")
+	require.NoError(t, err)
+	require.Equal(t, start, result.StartDate)
+	require.Equal(t, end, result.EndDate)
 }
