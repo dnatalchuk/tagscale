@@ -35,6 +35,8 @@ type compiledTeamMapping struct {
 
 // AnalysisResult represents the parsed result of a cost analysis run.
 type AnalysisResult struct {
+	StartDate       time.Time
+	EndDate         time.Time
 	TotalCost       float64
 	UntaggedCost    float64
 	UntaggedPercent float64
@@ -135,6 +137,8 @@ func (s *AnalysisService) RunAnalysis(ctx context.Context, limit int, startDate,
 	insights := s.GenerateInsights(totalCost, untaggedPercent, topServices)
 
 	result = AnalysisResult{
+		StartDate:       startDate,
+		EndDate:         endDate,
 		TotalCost:       totalCost,
 		UntaggedCost:    untaggedCost,
 		UntaggedPercent: untaggedPercent,

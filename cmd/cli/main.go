@@ -469,8 +469,12 @@ func printAnalysis(w io.Writer, result services.AnalysisResult, groupBy []string
 	if quiet {
 		return
 	}
-
-	fmt.Fprintf(w, "\n💰 Total Cost: $%.2f\n", result.TotalCost)
+	if !verbose {
+		fmt.Fprintf(w, "\n📅 Date Range: %s - %s\n", result.StartDate.Format("2006-01-02"), result.EndDate.Format("2006-01-02"))
+	} else {
+		fmt.Fprintln(w)
+	}
+	fmt.Fprintf(w, "💰 Total Cost: $%.2f\n", result.TotalCost)
 	fmt.Fprintf(w, "🏷️ Untagged Cost: $%.2f (%.1f%%)\n", result.UntaggedCost, result.UntaggedPercent)
 
 	for _, g := range groupBy {
