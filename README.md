@@ -115,6 +115,18 @@ each invocation starts with a fresh in-memory database and the scan results are 
 before the summary runs. Use `--db`, `--db-path`, or run both commands in a single
 session to retain the collected data.
 
+### CLI environment variables
+
+Each CLI flag can be set with an environment variable following the pattern
+`TAGSCALE_<FLAG_NAME>`, where the flag name is uppercased and dashes are
+replaced with underscores. For example:
+
+- `TAGSCALE_OUTPUT` sets the default for `--output`
+- `TAGSCALE_REGION` sets the default for `--region`
+
+Environment variables override built-in defaults but can still be overridden by
+explicit command-line flags.
+
 ### Example: In-memory scan and summary
 
 Run a quick scan for the last 7 days without saving results to a database and then
