@@ -49,7 +49,7 @@ func (c *Client) GetCostAndUsage(ctx context.Context, startDate, endDate time.Ti
 	input := &costexplorer.GetCostAndUsageInput{
 		TimePeriod: &types.DateInterval{
 			Start: aws.String(startDate.Format("2006-01-02")),
-			End:   aws.String(endDate.Format("2006-01-02")),
+			End:   aws.String(endDate.AddDate(0, 0, 1).Format("2006-01-02")),
 		},
 		Granularity: types.GranularityDaily,
 		Metrics:     []string{"BlendedCost"}, // Only request needed metric for lower API overhead
