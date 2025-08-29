@@ -66,7 +66,8 @@ func TestSendDailyDigestFormatsOutputs(t *testing.T) {
 	}
 
 	require.NoError(t, svc.SendDailyDigest())
-	expectedSlack := svc.formatSlackMessage(analysis)
+	expectedSlack, err := svc.formatSlackMessage(analysis)
+	require.NoError(t, err)
 	require.Equal(t, 1, mockSlack.calls)
 	require.Equal(t, cfg.SlackChannel, mockSlack.channel)
 	require.Equal(t, expectedSlack, mockSlack.message)
@@ -75,7 +76,15 @@ func TestSendDailyDigestFormatsOutputs(t *testing.T) {
 	require.Contains(t, sent.msg, "Insight1")
 }
 
-func (s *NotificationService) formatSlackMessage(a models.CostAnalysis) string {
+func (s *NotificationService) formatSlackMessage(a models.CostAnalysis) (string, error) {
+	ts, err := s.formatTopServices(a.TopServices)
+	if err != nil {
+		return "", err
+	}
+	ins, err := s.formatInsights(a.Insights)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf(`📊 *Daily Cost Report - %s*
 
 💰 *Total Cost:* $%.2f
@@ -90,9 +99,9 @@ func (s *NotificationService) formatSlackMessage(a models.CostAnalysis) string {
 		a.TotalCost,
 		a.UntaggedCost,
 		a.UntaggedPercent,
-		s.formatTopServices(a.TopServices),
-		s.formatInsights(a.Insights),
-	)
+		ts,
+		ins,
+	), nil
 }
 
 func TestSendDailyDigestMissingConfig(t *testing.T) {
@@ -111,4 +120,31 @@ func TestSendDailyDigestMissingConfig(t *testing.T) {
 	require.NoError(t, svc.SendDailyDigest())
 	require.Equal(t, 0, mockSlack.calls)
 	require.False(t, called)
+}
+
+func TestFormatTopServicesInvalidJSON(t *testing.T) {
+	svc := &NotificationService{}
+	_, err := svc.formatTopServices("invalid")
+	require.Error(t, err)
+}
+
+func TestFormatInsightsInvalidJSON(t *testing.T) {
+	svc := &NotificationService{}
+	_, err := svc.formatInsights("invalid")
+	require.Error(t, err)
+}
+
+func TestSendEmailDigestInvalidJSON(t *testing.T) {
+	db := setupDB(t)
+	analysis := models.CostAnalysis{
+		Date:        time.Now(),
+		TotalCost:   10,
+		TopServices: "{invalid",
+		Insights:    "[]",
+	}
+	cfg := &config.Config{EmailSMTPHost: "smtp.example.com", EmailSMTPPort: 25, EmailUsername: "user@example.com", EmailPassword: "pass"}
+	svc := NewNotificationService(cfg, db)
+	svc.sendMail = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error { return nil }
+	err := svc.sendEmailDigest(analysis)
+	require.Error(t, err)
 }

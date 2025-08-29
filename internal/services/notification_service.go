@@ -79,6 +79,15 @@ func (s *NotificationService) sendSlackDigest(analysis models.CostAnalysis) erro
 		s.slackClient = &realSlackClient{client: slack.New(s.config.SlackToken)}
 	}
 
+	topServices, err := s.formatTopServices(analysis.TopServices)
+	if err != nil {
+		return fmt.Errorf("failed to format top services: %w", err)
+	}
+	insights, err := s.formatInsights(analysis.Insights)
+	if err != nil {
+		return fmt.Errorf("failed to format insights: %w", err)
+	}
+
 	message := fmt.Sprintf(`📊 *Daily Cost Report - %s*
 
 💰 *Total Cost:* $%.2f
@@ -93,8 +102,8 @@ func (s *NotificationService) sendSlackDigest(analysis models.CostAnalysis) erro
 		analysis.TotalCost,
 		analysis.UntaggedCost,
 		analysis.UntaggedPercent,
-		s.formatTopServices(analysis.TopServices),
-		s.formatInsights(analysis.Insights),
+		topServices,
+		insights,
 	)
 
 	return s.slackClient.PostMessage(s.config.SlackChannel, message)
@@ -148,8 +157,12 @@ func (s *NotificationService) sendEmailDigest(analysis models.CostAnalysis) erro
 	data.TotalCost = analysis.TotalCost
 	data.UntaggedCost = analysis.UntaggedCost
 	data.UntaggedPercent = analysis.UntaggedPercent
-	_ = json.Unmarshal([]byte(analysis.TopServices), &data.TopServices)
-	_ = json.Unmarshal([]byte(analysis.Insights), &data.Insights)
+	if err := json.Unmarshal([]byte(analysis.TopServices), &data.TopServices); err != nil {
+		return fmt.Errorf("failed to parse top services: %w", err)
+	}
+	if err := json.Unmarshal([]byte(analysis.Insights), &data.Insights); err != nil {
+		return fmt.Errorf("failed to parse insights: %w", err)
+	}
 
 	if err := t.Execute(&buf, data); err != nil {
 		return err
@@ -170,24 +183,28 @@ func (s *NotificationService) sendEmailDigest(analysis models.CostAnalysis) erro
 	)
 }
 
-func (s *NotificationService) formatTopServices(topServicesJSON string) string {
+func (s *NotificationService) formatTopServices(topServicesJSON string) (string, error) {
 	var services []models.CostSummary
-	json.Unmarshal([]byte(topServicesJSON), &services)
+	if err := json.Unmarshal([]byte(topServicesJSON), &services); err != nil {
+		return "", fmt.Errorf("failed to parse top services: %w", err)
+	}
 
 	var result string
 	for _, service := range services {
 		result += fmt.Sprintf("• %s: $%.2f\n", service.Service, service.TotalCost)
 	}
-	return result
+	return result, nil
 }
 
-func (s *NotificationService) formatInsights(insightsJSON string) string {
+func (s *NotificationService) formatInsights(insightsJSON string) (string, error) {
 	var insights []string
-	json.Unmarshal([]byte(insightsJSON), &insights)
+	if err := json.Unmarshal([]byte(insightsJSON), &insights); err != nil {
+		return "", fmt.Errorf("failed to parse insights: %w", err)
+	}
 
 	var result string
 	for _, insight := range insights {
 		result += fmt.Sprintf("• %s\n", insight)
 	}
-	return result
+	return result, nil
 }
