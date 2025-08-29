@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// Common patterns for inferring team ownership
-var TeamPatterns = map[string][]string{
+// teamPatternStrings holds raw patterns for inferring team ownership.
+var teamPatternStrings = map[string][]string{
 	"frontend": {
 		"^web-.*",
 		"^ui-.*",
@@ -49,13 +49,24 @@ var TeamPatterns = map[string][]string{
 	},
 }
 
+// TeamPatterns stores compiled regular expressions for team inference.
+var TeamPatterns map[string][]*regexp.Regexp
+
+func init() {
+	TeamPatterns = make(map[string][]*regexp.Regexp, len(teamPatternStrings))
+	for team, patterns := range teamPatternStrings {
+		for _, p := range patterns {
+			TeamPatterns[team] = append(TeamPatterns[team], regexp.MustCompile(p))
+		}
+	}
+}
+
 func InferTeamFromResourceName(resourceName string) string {
 	resourceName = strings.ToLower(resourceName)
 
 	for team, patterns := range TeamPatterns {
 		for _, pattern := range patterns {
-			matched, _ := regexp.MatchString(pattern, resourceName)
-			if matched {
+			if pattern.MatchString(resourceName) {
 				return team
 			}
 		}
