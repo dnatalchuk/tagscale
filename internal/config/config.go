@@ -30,7 +30,7 @@ type Config struct {
 	AllowNoAuth            bool
 }
 
-func Load() (*Config, error) {
+func Load() *Config {
 	// Load .env file if it exists
 	_ = godotenv.Load()
 
@@ -55,7 +55,7 @@ func Load() (*Config, error) {
 		AllowNoAuth:            getEnvAsBool("ALLOW_NO_AUTH", false),
 	}
 
-	return config, nil
+	return config
 }
 
 func getEnv(key, defaultValue string) string {
