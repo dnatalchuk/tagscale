@@ -19,10 +19,7 @@ import (
 
 func main() {
 	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal("Failed to load configuration:", err)
-	}
+	cfg := config.Load()
 
 	// Initialize database
 	db, err := database.Connect(cfg.DatabaseURL)

@@ -28,7 +28,8 @@ var awsClientFactory = func(ctx context.Context, region, profile string) (servic
 	return aws.NewClient(ctx, region, profile)
 }
 
-// configLoader allows tests to simulate configuration loading errors.
+// configLoader allows tests to override configuration loading.
+// Returning nil simulates a load failure.
 var configLoader = config.Load
 
 // exitFunc allows tests to intercept calls to os.Exit.
@@ -145,9 +146,9 @@ func NewCLI() *cobra.Command {
 		output = "table"
 	}
 
-	cfg, err := configLoader()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+	cfg := configLoader()
+	if cfg == nil {
+		fmt.Fprintln(os.Stderr, "Failed to load config")
 		exitFunc(1)
 	}
 	timeout = cfg.AWSRequestTimeout

@@ -32,8 +32,7 @@ func TestRunSummaryWithDBPath(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "cli.db")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 	cmd := &cobra.Command{}
 	require.NoError(t, runSummary(cmd, cfg, "30", false, true, dbPath, "table", []string{"service"}, 5, true, false, false))
 
@@ -50,8 +49,7 @@ func TestRunSummaryRunsMigrationsWithFlag(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 	cmd := &cobra.Command{}
 	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false))
 
@@ -68,8 +66,7 @@ func TestRunSummaryClosesDB(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 	cmd := &cobra.Command{}
 	require.NoError(t, runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false))
 
@@ -90,15 +87,14 @@ func TestRunSummaryQuietModeNoOutput(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false)
+	err := runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -110,8 +106,7 @@ func TestRunScanQuietModeNoOutput(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	mockClient := &mockQuietAWSClient{}
 	origFactory := awsClientFactory
@@ -125,7 +120,7 @@ func TestRunScanQuietModeNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, true, false, false)
+	err := runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -137,8 +132,7 @@ func TestRunScanQuietJSONNoOutput(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	mockClient := &mockQuietAWSClient{}
 	origFactory := awsClientFactory
@@ -152,7 +146,7 @@ func TestRunScanQuietJSONNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "json", 30, true, false, false)
+	err := runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "json", 30, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -164,15 +158,14 @@ func TestRunSummaryQuietJSONNoOutput(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "json", []string{"service"}, 5, true, false, false)
+	err := runSummary(cmd, cfg, "30", true, true, "", "json", []string{"service"}, 5, true, false, false)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -184,15 +177,14 @@ func TestRunSummarySilentModeNoOutput(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, false, true, true)
+	err := runSummary(cmd, cfg, "30", true, true, "", "table", []string{"service"}, 5, false, true, true)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -204,8 +196,7 @@ func TestRunScanSilentModeNoOutput(t *testing.T) {
 	os.Setenv("DATABASE_URL", "sqlite://"+dbPath)
 	defer os.Unsetenv("DATABASE_URL")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	mockClient := &mockQuietAWSClient{}
 	origFactory := awsClientFactory
@@ -219,7 +210,7 @@ func TestRunScanSilentModeNoOutput(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	err = runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, false, true, true)
+	err := runScan(context.Background(), cmd, cfg, "1", true, true, "", "", "", "table", 30, false, true, true)
 	require.NoError(t, err)
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -369,8 +360,7 @@ func TestRunSummaryGroupByLimit(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&mappings).Error)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	cases := []struct {
 		group   string
@@ -419,8 +409,7 @@ func TestRunSummaryMultipleGroups(t *testing.T) {
 	rec := models.CostRecord{Date: yesterday, Service: "AmazonEC2", Account: "1111", Region: "us-east-1", Cost: 100, Tags: "{}", ResourceID: "i-1"}
 	require.NoError(t, db.Create(&rec).Error)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
@@ -447,8 +436,7 @@ func TestRunSummaryRemovesDuplicateGroups(t *testing.T) {
 	rec := models.CostRecord{Date: yesterday, Service: "AmazonEC2", Account: "1111", Region: "us-east-1", Cost: 100, Tags: "{}", ResourceID: "i-1"}
 	require.NoError(t, db.Create(&rec).Error)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
@@ -480,8 +468,7 @@ func TestRunSummaryHonorsRange(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&recs).Error)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
@@ -510,8 +497,7 @@ func TestRunSummaryJSONIncludesDateRange(t *testing.T) {
 	rec := models.CostRecord{Date: now, Service: "AmazonEC2", Cost: 1, Tags: "{}"}
 	require.NoError(t, db.Create(&rec).Error)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}

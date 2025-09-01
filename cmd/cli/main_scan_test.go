@@ -68,8 +68,7 @@ func TestRunScanInsertsCostRecords(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 	require.NoError(t, runScan(context.Background(), cmd, cfg, "1", false, true, dbPath, "", "", "table", 30, true, false, false))
 
 	require.Empty(t, strings.TrimSpace(buf.String()))
@@ -103,8 +102,7 @@ func TestRunScanNoDataWarning(t *testing.T) {
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load()
 	require.NoError(t, runScan(context.Background(), cmd, cfg, "1", false, true, dbPath, "", "", "table", 30, false, false, false))
 
 	require.Contains(t, buf.String(), "No cost data collected")

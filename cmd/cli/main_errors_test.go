@@ -77,8 +77,8 @@ func TestNewCLIConfigLoadFailure(t *testing.T) {
 		exitFunc = origExit
 	}()
 
-	configLoader = func() (*config.Config, error) {
-		return nil, fmt.Errorf("boom")
+	configLoader = func() *config.Config {
+		return nil
 	}
 
 	var stderr bytes.Buffer
@@ -101,5 +101,5 @@ func TestNewCLIConfigLoadFailure(t *testing.T) {
 	<-done
 	os.Stderr = oldStderr
 
-	require.Contains(t, stderr.String(), "Failed to load config: boom")
+	require.Contains(t, stderr.String(), "Failed to load config")
 }
